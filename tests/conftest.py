@@ -9,16 +9,24 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         default=False,
         help="run tests that require local services",
     )
+    parser.addoption(
+        "--run-live-api",
+        action="store_true",
+        default=False,
+        help="run tests that call paid external APIs",
+    )
 
 
 def pytest_collection_modifyitems(
     config: pytest.Config, items: list[pytest.Item]
 ) -> None:
-    if config.getoption("--run-integration"):
-        return
-
-    # 기본 pytest가 Qdrant 실행 여부에 따라 실패하지 않도록 integration marker를 건너뛴다.
+    run_integration = config.getoption("--run-integration")
+    run_live_api = config.getoption("--run-live-api")
     skip_integration = pytest.mark.skip(reason="requires --run-integration")
+    skip_live_api = pytest.mark.skip(reason="requires --run-live-api")
     for item in items:
-        if "integration" in item.keywords:
+        # Qdrant와 유료 OpenAI API 테스트를 서로 독립적으로 선택한다.
+        if "integration" in item.keywords and not run_integration:
             item.add_marker(skip_integration)
+        if "live_api" in item.keywords and not run_live_api:
+            item.add_marker(skip_live_api)
