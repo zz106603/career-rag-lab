@@ -105,3 +105,20 @@
 - 장점: 재색인 중복 방지 기반을 제공하고 Chunk content를 원문 위치로 직접 검증할 수 있다.
 - 단점: 파일명이 같으면 document ID가 충돌할 수 있고 분할 전략이나 내용 변경 시 Chunk ID가 바뀐다.
 - 재검토 조건: 중첩 디렉터리나 동일 파일명의 여러 source를 지원할 때
+
+---
+
+## D-006. 기본 Embedding 모델은 text-embedding-3-small을 사용한다
+
+- 날짜: 2026-08-07
+- 상태: 확정
+- 관련 Phase: Phase 1
+- 문제: RAG 학습에 필요한 실제 Embedding을 생성하면서 API 비용을 최소화해야 한다.
+- 선택지:
+  - `text-embedding-3-small` 1536차원
+  - `text-embedding-3-large` 3072차원
+- 결정: 기본 모델은 `text-embedding-3-small`, 기본 차원은 1536, batch 크기는 100으로 설정하고 모두 환경변수로 변경할 수 있게 한다.
+- 이유: 현재 OpenAI Embedding 모델 중 small 모델의 입력 토큰 비용이 large 모델보다 낮고 학습용 데이터 규모에도 충분하다.
+- 장점: 실제 API 호출 비용과 Qdrant 저장 크기를 낮게 유지하면서 다국어 의미 검색을 실험할 수 있다.
+- 단점: large 모델보다 검색 품질이 낮을 수 있으며 batch 크기는 호출 횟수만 줄이고 입력 토큰 과금 자체를 줄이지 않는다.
+- 재검토 조건: 평가 질문에서 검색 품질이 부족하거나 다른 차원의 Collection을 실험할 때

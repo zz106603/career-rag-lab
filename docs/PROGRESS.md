@@ -6,38 +6,37 @@ Phase 1 — LangChain 없이 RAG 직접 구현
 
 ## Current task
 
-P1-03 — Embedding 생성
+P1-04 — Qdrant 색인
 
 ## Goal
 
-- OpenAI Embedding API를 직접 호출해 하나 또는 여러 Chunk의 벡터를 생성한다.
-- 모델과 벡터 차원, batch 크기를 설정으로 관리한다.
-- API 호출부와 결과 검증을 단위 테스트 가능한 구조로 분리한다.
+- Embedding된 Chunk를 Qdrant Collection에 저장한다.
+- 같은 문서를 다시 색인해도 중복 Point가 늘지 않게 한다.
+- source와 Chunk metadata를 Qdrant payload에 보존한다.
 
 ## In scope
 
-- OpenAI Embedding API 직접 호출
-- 단일·복수 Chunk 입력과 batch 처리
-- Embedding 모델, 차원, batch 크기 환경설정
-- 빈 입력과 API 오류 처리
-- 반환 벡터 개수와 차원 검증
-- API 호출부 단위 테스트
+- Qdrant Collection 생성과 설정 검증
+- Chunk ID 기반 Point ID와 payload 설계
+- Embedding과 Chunk metadata 저장
+- 같은 문서 재색인 시 중복 방지
+- 문서 단위 삭제 후 재색인
+- 단위 테스트와 실제 Qdrant 통합 테스트
 
 ## Out of scope
 
-- Qdrant Collection 생성과 색인
 - Vector Search
-- 답변 생성용 OpenAI API 호출
+- 질문 Embedding
+- Prompt와 답변 생성
 - LangChain
 
 ## Completion criteria
 
-- 하나와 여러 Chunk의 Embedding을 생성할 수 있다.
-- 입력은 설정한 batch 크기로 나뉘어 호출된다.
-- 반환 벡터의 개수와 차원이 검증된다.
-- 빈 입력과 API 오류의 동작이 명확하다.
-- API 키가 코드나 로그에 노출되지 않는다.
-- 실제 API 없이 호출부를 단위 테스트할 수 있다.
+- Qdrant에서 저장된 Point와 payload를 확인할 수 있다.
+- payload에 content, source, section과 필요한 metadata가 보존된다.
+- 동일 문서를 다시 색인해도 Point 중복이 늘지 않는다.
+- 문서 단위 삭제와 재색인이 가능하다.
+- Collection 벡터 차원과 Embedding 차원이 일치한다.
 
 ## Completed
 
@@ -80,6 +79,14 @@ P1-03 — Embedding 생성
   - 모든 Chunk에 결정적 chunk ID·document ID, source, section, index, 문서 유형, 프로젝트명, 전략, 원문 문자 범위를 보존했다.
   - 전략별 Chunk 목록을 동시에 반환하는 비교 함수를 추가했다.
   - ID와 원문 위치 설계를 `docs/DECISIONS.md`의 D-005에 기록했다.
+- P1-03 Embedding 생성
+  - OpenAI Python SDK를 사용해 하나 이상의 Chunk를 batch 단위로 Embedding하는 로직을 구현했다.
+  - `text-embedding-3-small`, 1536차원, batch 크기 100을 저비용 기본 설정으로 추가했다.
+  - `.env`를 자동 로딩하고 API 키가 설정 객체 표현에 노출되지 않게 했다.
+  - 입력 순서와 API response index를 연결하고 반환 개수와 벡터 차원을 검증했다.
+  - 빈 입력, API 오류, 응답 개수·차원 오류를 실제 API 없이 테스트했다.
+  - 유료 실제 API 테스트를 `--run-live-api` 옵션으로 분리하고 작은 Chunk 하나의 1536차원 벡터 생성을 확인했다.
+  - 모델 선택 이유를 `docs/DECISIONS.md`의 D-006에 기록했다.
 
 ## Verified
 
@@ -106,6 +113,11 @@ P1-03 — Embedding 생성
 - 전체 pytest 시도: Chunking 포함 30 passed, Qdrant 통합 1 skipped, 기존 health 테스트 1 failed (`WinError 10014`)
 - 180자 기준 실제 비교: 구조 기반 Chunk는 56~180자이며 section 경계를 보존했고, 고정 크기 Chunk는 대부분 180자이며 인접 Chunk에 20자 overlap이 적용됐다.
 - Chunking 데이터 흐름: `Document` → 제목 위치와 section 분석 또는 고정 문자 범위 계산 → source·section·원문 위치 metadata 복사 → 입력·전략·범위·content 해시 → `Chunk` 목록
+- `.venv\Scripts\python.exe -m pytest -q tests/test_config.py tests/test_embeddings.py`: 15 passed
+- `.venv\Scripts\python.exe -m pytest -q --ignore=tests/test_health.py`: 43 passed, 2 skipped
+- `.venv\Scripts\python.exe -m pytest -q -m live_api --run-live-api`: 1 passed, 40 deselected, 1 warning
+- 실제 설정 확인: API 키 설정됨, `text-embedding-3-small`, 1536차원, batch 크기 100, Settings repr에서 키 숨김
+- Embedding 데이터 흐름: `.env` → 비밀 키·모델·차원·batch 설정 → Chunk content 목록을 batch로 분할 → OpenAI Embeddings API → response index 정렬 → 개수·차원 검증 → 원본 Chunk와 vector를 결합한 `EmbeddedChunk`
 
 ## Learned
 
@@ -121,6 +133,9 @@ P1-03 — Embedding 생성
 - 디렉터리 로딩 순서를 파일명 기준으로 고정하면 같은 문서 집합에서 이후 ID 생성 순서와 테스트 결과를 재현하기 쉽다.
 - 구조 기반 분할은 section 의미를 유지하지만 짧은 Chunk가 생길 수 있고, 고정 크기 분할은 길이가 균일하지만 section 경계를 가로지를 수 있다.
 - 문자 시작·끝 위치를 metadata에 저장하면 overlap이 있어도 각 Chunk가 원문의 정확한 어느 범위인지 직접 검증할 수 있다.
+- Embedding API는 여러 입력을 한 요청에 보낼 수 있지만 과금은 입력 토큰 기준이므로 batch는 비용보다 호출 횟수와 지연을 줄이는 설정이다.
+- API response index를 기준으로 결과를 정렬해야 batch 안의 각 벡터를 원래 Chunk와 안전하게 연결할 수 있다.
+- 실제 키가 필요한 테스트를 기본 pytest에서 제외하면 반복 개발 중 의도하지 않은 유료 호출을 막을 수 있다.
 
 ## Problems
 
@@ -129,7 +144,7 @@ P1-03 — Embedding 생성
 
 ## Next task
 
-P1-04 — Qdrant 색인
+P1-05 — Vector Search
 
 ## Update rule
 
