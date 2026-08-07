@@ -10,6 +10,8 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.116,<1.0",
+    "openai>=2.0,<3.0",
+    "python-dotenv>=1.2,<2.0",
     "qdrant-client>=1.15,<2.0",
     "uvicorn[standard]>=0.35,<1.0",
 ]
@@ -27,5 +29,6 @@ packages = ["app"]
 testpaths = ["tests"]
 markers = [
     "integration: requires a running local service",
+    "live_api: calls a paid external API",
 ]
 

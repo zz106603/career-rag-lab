@@ -43,6 +43,12 @@ python -m pip install -e ".[dev]"
 
 환경변수가 필요할 때는 `.env.example`을 `.env`로 복사한 뒤 실제 값을 `.env`에만 입력한다. `.env`와 API 키는 Git에 커밋하지 않는다.
 
+Embedding 설정은 기본적으로 비용이 낮은 `text-embedding-3-small`, 1536차원, batch 크기 100을 사용한다. 실제 OpenAI API를 호출하는 최소 검증은 유료 호출임을 명시하는 다음 옵션으로만 실행된다.
+
+```powershell
+pytest -m live_api --run-live-api
+```
+
 FastAPI 애플리케이션을 실행한다.
 
 ```powershell
