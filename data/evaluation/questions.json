@@ -1,0 +1,119 @@
+[
+  {
+    "id": "q01",
+    "category": "semantic",
+    "question": "오래 걸리는 분석 요청이 웹 요청 시간을 초과할 때 어떻게 처리했나요?",
+    "expected_sources": ["precision-medical-platform.md"],
+    "answerable": true
+  },
+  {
+    "id": "q02",
+    "category": "semantic",
+    "question": "외부 기관으로 자료를 보낼 때 같은 내용이 두 번 처리되지 않도록 한 방법은 무엇인가요?",
+    "expected_sources": ["finance-transfer-system.md"],
+    "answerable": true
+  },
+  {
+    "id": "q03",
+    "category": "semantic",
+    "question": "하나의 장애에서 반복 알림이 발생하는 문제를 어떻게 줄였나요?",
+    "expected_sources": ["incident-response-tool.md"],
+    "answerable": true
+  },
+  {
+    "id": "q04",
+    "category": "exact_keyword",
+    "question": "RabbitMQ를 사용한 프로젝트와 처리 방식을 알려주세요.",
+    "expected_sources": ["finance-transfer-system.md"],
+    "answerable": true
+  },
+  {
+    "id": "q05",
+    "category": "exact_keyword",
+    "question": "Playwright를 어디에 사용했나요?",
+    "expected_sources": ["social-analytics-dashboard.md"],
+    "answerable": true
+  },
+  {
+    "id": "q06",
+    "category": "exact_keyword",
+    "question": "Celery를 적용한 이유는 무엇인가요?",
+    "expected_sources": ["precision-medical-platform.md"],
+    "answerable": true
+  },
+  {
+    "id": "q07",
+    "category": "conditional",
+    "question": "정밀 의료 프로젝트에서 분석 작업이 오래 걸리는 경우의 상태 확인 방법을 설명해주세요.",
+    "expected_sources": ["precision-medical-platform.md"],
+    "answerable": true
+  },
+  {
+    "id": "q08",
+    "category": "conditional",
+    "question": "재무자료 전송 중 네트워크 타임아웃이 발생한 뒤 재시도할 때 어떤 조건을 확인했나요?",
+    "expected_sources": ["finance-transfer-system.md"],
+    "answerable": true
+  },
+  {
+    "id": "q09",
+    "category": "conditional",
+    "question": "소셜 대시보드에서 기간, 채널, 캠페인 조건이 달라질 때 캐시는 어떻게 구분했나요?",
+    "expected_sources": ["social-analytics-dashboard.md"],
+    "answerable": true
+  },
+  {
+    "id": "q10",
+    "category": "multi_document",
+    "question": "FastAPI를 사용한 프로젝트들과 각 프로젝트에서 맡은 역할을 비교해주세요.",
+    "expected_sources": [
+      "precision-medical-platform.md",
+      "social-analytics-dashboard.md",
+      "incident-response-tool.md"
+    ],
+    "answerable": true
+  },
+  {
+    "id": "q11",
+    "category": "multi_document",
+    "question": "비동기 처리 또는 메시징 경험을 프로젝트 사례와 기술 역량을 함께 근거로 설명해주세요.",
+    "expected_sources": [
+      "precision-medical-platform.md",
+      "finance-transfer-system.md",
+      "backend-skills.md"
+    ],
+    "answerable": true
+  },
+  {
+    "id": "q12",
+    "category": "multi_document",
+    "question": "외부 서비스에 의존하는 기능을 테스트하기 쉽게 만든 방법을 사례와 원칙으로 설명해주세요.",
+    "expected_sources": [
+      "incident-response-tool.md",
+      "backend-skills.md"
+    ],
+    "answerable": true
+  },
+  {
+    "id": "q13",
+    "category": "unanswerable",
+    "question": "AWS Solutions Architect 자격증을 취득한 날짜와 자격 번호를 알려주세요.",
+    "expected_sources": [],
+    "answerable": false
+  },
+  {
+    "id": "q14",
+    "category": "unanswerable",
+    "question": "운영 중인 Kafka 클러스터의 브로커 수와 초당 처리량을 알려주세요.",
+    "expected_sources": [],
+    "answerable": false
+  },
+  {
+    "id": "q15",
+    "category": "unanswerable",
+    "question": "Swift로 출시한 모바일 애플리케이션의 이름과 다운로드 수를 알려주세요.",
+    "expected_sources": [],
+    "answerable": false
+  }
+]
+
