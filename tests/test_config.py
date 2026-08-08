@@ -15,6 +15,13 @@ def test_qdrant_url_uses_environment_variable(monkeypatch) -> None:
     assert get_settings().qdrant_url == "http://qdrant.example:6333"
 
 
+def test_qdrant_collection_uses_environment_variable(monkeypatch) -> None:
+    monkeypatch.setenv("QDRANT_COLLECTION", "test_documents")
+
+    assert get_settings().qdrant_collection == "test_documents"
+
+
+
 def test_embedding_settings_use_low_cost_defaults(monkeypatch) -> None:
     monkeypatch.delenv("OPENAI_EMBEDDING_MODEL", raising=False)
     monkeypatch.delenv("OPENAI_EMBEDDING_DIMENSIONS", raising=False)

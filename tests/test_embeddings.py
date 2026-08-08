@@ -19,6 +19,7 @@ def make_settings(
 ) -> Settings:
     return Settings(
         qdrant_url="http://localhost:6333",
+        qdrant_collection="career_documents",
         openai_api_key=api_key,
         embedding_model="text-embedding-3-small",
         embedding_dimensions=dimensions,
