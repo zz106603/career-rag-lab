@@ -6,37 +6,37 @@ Phase 1 — LangChain 없이 RAG 직접 구현
 
 ## Current task
 
-P1-04 — Qdrant 색인
+P1-05 — Vector Search
 
 ## Goal
 
-- Embedding된 Chunk를 Qdrant Collection에 저장한다.
-- 같은 문서를 다시 색인해도 중복 Point가 늘지 않게 한다.
-- source와 Chunk metadata를 Qdrant payload에 보존한다.
+- 질문을 Embedding하고 Qdrant에서 의미가 가까운 Chunk를 검색한다.
+- LLM 호출 없이 검색 결과와 score, 출처를 별도로 관찰한다.
+- `top_k`와 score threshold에 따른 결과 차이를 확인한다.
 
 ## In scope
 
-- Qdrant Collection 생성과 설정 검증
-- Chunk ID 기반 Point ID와 payload 설계
-- Embedding과 Chunk metadata 저장
-- 같은 문서 재색인 시 중복 방지
-- 문서 단위 삭제 후 재색인
-- 단위 테스트와 실제 Qdrant 통합 테스트
+- 질문 Embedding 생성
+- Qdrant cosine 유사도 검색
+- `top_k`와 score threshold 설정
+- content, source, score, metadata를 가진 검색 결과 모델
+- LLM 호출 없는 검색 API
+- 검색 로직 단위 테스트와 실제 Qdrant 통합 테스트
 
 ## Out of scope
 
-- Vector Search
-- 질문 Embedding
 - Prompt와 답변 생성
+- 검색 결과 기반 LLM 호출
+- Hybrid Search와 reranking
 - LangChain
 
 ## Completion criteria
 
-- Qdrant에서 저장된 Point와 payload를 확인할 수 있다.
-- payload에 content, source, section과 필요한 metadata가 보존된다.
-- 동일 문서를 다시 색인해도 Point 중복이 늘지 않는다.
-- 문서 단위 삭제와 재색인이 가능하다.
-- Collection 벡터 차원과 Embedding 차원이 일치한다.
+- LLM 호출 없이 검색 결과를 확인할 수 있다.
+- 결과가 score 순서로 반환되고 content, source, metadata가 보존된다.
+- `top_k`와 threshold 변경 결과를 비교할 수 있다.
+- 근거 없는 질문에서 낮은 점수 또는 빈 결과를 확인할 수 있다.
+- 검색 결과와 생성 답변의 경계가 API 구조에서 분리된다.
 
 ## Completed
 
@@ -87,6 +87,15 @@ P1-04 — Qdrant 색인
   - 빈 입력, API 오류, 응답 개수·차원 오류를 실제 API 없이 테스트했다.
   - 유료 실제 API 테스트를 `--run-live-api` 옵션으로 분리하고 작은 Chunk 하나의 1536차원 벡터 생성을 확인했다.
   - 모델 선택 이유를 `docs/DECISIONS.md`의 D-006에 기록했다.
+- P1-04 Qdrant 색인
+  - Collection을 생성하고 기존 Collection의 vector size와 Cosine distance 설정을 검증하는 `QdrantIndexer`를 구현했다.
+  - 결정적 chunk ID를 Qdrant가 허용하는 UUID5 Point ID로 변환하고 원래 ID는 payload에 보존했다.
+  - content, source, section, document ID, Chunk metadata와 원문 위치를 payload로 저장했다.
+  - 새 입력을 검증한 후 document ID로 기존 Point를 삭제하고 현재 Chunk 집합을 upsert하도록 구현했다.
+  - 동일 문서 재색인, stale Chunk 제거, 문서 단위 삭제와 다른 문서 보존을 검증했다.
+  - 전체 학습 문서를 로딩·Chunking·Embedding·색인하는 `python -m app.index_documents` 실행 명령을 추가했다.
+  - Qdrant 서버 1.15.5와 Python Client 1.15.1의 minor 버전을 맞춰 호환성 경고를 제거했다.
+  - 문서 단위 교체 전략을 `docs/DECISIONS.md`의 D-007에 기록했다.
 
 ## Verified
 
@@ -118,6 +127,15 @@ P1-04 — Qdrant 색인
 - `.venv\Scripts\python.exe -m pytest -q -m live_api --run-live-api`: 1 passed, 40 deselected, 1 warning
 - 실제 설정 확인: API 키 설정됨, `text-embedding-3-small`, 1536차원, batch 크기 100, Settings repr에서 키 숨김
 - Embedding 데이터 흐름: `.env` → 비밀 키·모델·차원·batch 설정 → Chunk content 목록을 batch로 분할 → OpenAI Embeddings API → response index 정렬 → 개수·차원 검증 → 원본 Chunk와 vector를 결합한 `EmbeddedChunk`
+- `.venv\Scripts\python.exe -m pytest -q tests/test_indexing.py`: 8 passed
+- `.venv\Scripts\python.exe -m pytest -q -m integration --run-integration`: 2 passed, 54 deselected, 1 warning
+- `.venv\Scripts\python.exe -m pytest -q --ignore=tests/test_health.py`: 53 passed, 3 skipped
+- 실제 Qdrant 임시 Collection에서 Point 2개와 payload·4차원 벡터 저장, 동일 문서 재색인 후 2개 유지, Chunk 축소 후 1개, 문서 삭제 후 0개를 확인했다.
+- 실제 OpenAI API와 영속 Qdrant를 연결해 학습 문서 6개를 28개 Chunk로 색인했다.
+- `career_documents` 직접 조회 결과 Point 28개, 문서 6개, vector size 1536, Cosine distance를 확인했다.
+- 저장된 모든 Point를 읽어 source별 4~5개 Chunk와 content, source, section, 원문 위치를 포함한 payload 및 1536차원 vector를 확인했다.
+- Qdrant 색인 데이터 흐름: `EmbeddedChunk` 목록 → 단일 document ID·고유 chunk ID·벡터 차원 검증 → Collection 생성 또는 설정 확인 → 기존 document ID Point 삭제 → UUID5 Point ID와 payload 변환 → wait 방식 upsert
+- 전체 색인 데이터 흐름: `data/documents`의 Markdown 6개 → 구조 기반 Chunk 28개 → OpenAI batch Embedding → 문서별 기존 Point 교체 → `career_documents` 영속 Collection
 
 ## Learned
 
@@ -136,6 +154,9 @@ P1-04 — Qdrant 색인
 - Embedding API는 여러 입력을 한 요청에 보낼 수 있지만 과금은 입력 토큰 기준이므로 batch는 비용보다 호출 횟수와 지연을 줄이는 설정이다.
 - API response index를 기준으로 결과를 정렬해야 batch 안의 각 벡터를 원래 Chunk와 안전하게 연결할 수 있다.
 - 실제 키가 필요한 테스트를 기본 pytest에서 제외하면 반복 개발 중 의도하지 않은 유료 호출을 막을 수 있다.
+- Qdrant는 임의 길이 문자열을 Point ID로 허용하지 않으므로 결정적 chunk ID를 UUID5로 변환하되 payload에는 원래 ID를 유지해야 한다.
+- 결정적 ID upsert만으로는 Chunk 수가 줄었을 때 stale Point가 남으므로 문서 단위 교체가 필요하다.
+- Qdrant 서버와 Python Client의 minor 버전 차이가 크면 호환성 경고가 발생하므로 같은 1.15 계열로 제한했다.
 
 ## Problems
 
@@ -144,7 +165,7 @@ P1-04 — Qdrant 색인
 
 ## Next task
 
-P1-05 — Vector Search
+P1-06 — Prompt와 답변 생성
 
 ## Update rule
 
