@@ -68,6 +68,24 @@ docker compose ps
 
 Qdrant REST API는 `http://localhost:6333`, gRPC API는 `localhost:6334`에서 사용할 수 있다. 데이터는 Docker의 `qdrant_storage` named volume에 유지된다. 애플리케이션은 `QDRANT_URL` 환경변수를 사용하며 기본값은 `http://localhost:6333`이다.
 
+학습 문서 전체를 실제 OpenAI Embedding으로 변환해 `career_documents`에 저장한다. 이 명령은 유료 OpenAI API를 호출한다.
+
+```powershell
+python -m app.index_documents
+```
+
+완료 후 `http://localhost:6333/dashboard`의 Collections 화면에서 `career_documents`를 선택하면 Point와 payload를 볼 수 있다. 같은 명령을 다시 실행해도 문서 단위로 교체되므로 Point 수는 증가하지 않는다.
+
+REST API로 원문과 metadata를 확인하려면 다음 명령을 사용한다.
+
+```powershell
+$body = @{ limit = 10; with_payload = $true; with_vector = $false } | ConvertTo-Json
+Invoke-RestMethod -Method Post `
+    -Uri "http://localhost:6333/collections/career_documents/points/scroll" `
+    -ContentType "application/json" `
+    -Body $body
+```
+
 실제 Qdrant 연결 상태를 검사하려면 통합 테스트를 실행한다.
 
 ```powershell
