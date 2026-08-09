@@ -6,37 +6,37 @@ Phase 1 — LangChain 없이 RAG 직접 구현
 
 ## Current task
 
-P1-05 — Vector Search
+P1-06 — Prompt와 답변 생성
 
 ## Goal
 
-- 질문을 Embedding하고 Qdrant에서 의미가 가까운 Chunk를 검색한다.
-- LLM 호출 없이 검색 결과와 score, 출처를 별도로 관찰한다.
-- `top_k`와 score threshold에 따른 결과 차이를 확인한다.
+- 검색된 Chunk만 Context로 사용해 질문에 답한다.
+- 답변에 사용한 출처를 검색 결과와 별도로 반환한다.
+- 검색 근거가 부족하면 LLM 호출 없이 답변을 거부한다.
 
 ## In scope
 
-- 질문 Embedding 생성
-- Qdrant cosine 유사도 검색
-- `top_k`와 score threshold 설정
-- content, source, score, metadata를 가진 검색 결과 모델
-- LLM 호출 없는 검색 API
-- 검색 로직 단위 테스트와 실제 Qdrant 통합 테스트
+- 질문과 Context를 구분한 Prompt 구성
+- 검색 결과 기반 OpenAI 답변 생성
+- 답변과 출처 응답 구조
+- 근거 부족 판정과 LLM 호출 생략
+- 검색 결과와 생성 답변의 분리 관찰
+- 단위 테스트와 실제 API 검증
 
 ## Out of scope
 
-- Prompt와 답변 생성
-- 검색 결과 기반 LLM 호출
+- 문서 변경 감지와 증분 재색인
 - Hybrid Search와 reranking
+- 대화 기록과 멀티턴 질의
 - LangChain
 
 ## Completion criteria
 
-- LLM 호출 없이 검색 결과를 확인할 수 있다.
-- 결과가 score 순서로 반환되고 content, source, metadata가 보존된다.
-- `top_k`와 threshold 변경 결과를 비교할 수 있다.
-- 근거 없는 질문에서 낮은 점수 또는 빈 결과를 확인할 수 있다.
-- 검색 결과와 생성 답변의 경계가 API 구조에서 분리된다.
+- 검색 결과와 생성 답변을 별도로 확인할 수 있다.
+- 답변에 사용된 출처를 확인할 수 있다.
+- 문서 근거 안에서만 답변하도록 Prompt가 제한한다.
+- 근거가 부족하면 LLM을 호출하지 않고 답변을 거부한다.
+- 문서에 없는 경험을 사실처럼 생성하지 않는다.
 
 ## Completed
 
@@ -96,6 +96,12 @@ P1-05 — Vector Search
   - 전체 학습 문서를 로딩·Chunking·Embedding·색인하는 `python -m app.index_documents` 실행 명령을 추가했다.
   - Qdrant 서버 1.15.5와 Python Client 1.15.1의 minor 버전을 맞춰 호환성 경고를 제거했다.
   - 문서 단위 교체 전략을 `docs/DECISIONS.md`의 D-007에 기록했다.
+- P1-05 Vector Search
+  - 질문을 OpenAI로 한 번 Embedding하고 Qdrant에서 Cosine 유사 Chunk를 조회하는 `SearchService`를 구현했다.
+  - content, source, score, metadata를 보존하는 독립적인 `SearchResult` 모델을 추가했다.
+  - `top_k`와 score threshold를 요청별로 조정하고 근거가 없으면 빈 목록을 반환하도록 했다.
+  - LLM과 answer 필드 없이 검색 근거만 반환하는 `POST /search` API를 추가했다.
+  - 검색과 생성 답변 분리 결정을 `docs/DECISIONS.md`의 D-008에 기록했다.
 
 ## Verified
 
@@ -136,6 +142,14 @@ P1-05 — Vector Search
 - 저장된 모든 Point를 읽어 source별 4~5개 Chunk와 content, source, section, 원문 위치를 포함한 payload 및 1536차원 vector를 확인했다.
 - Qdrant 색인 데이터 흐름: `EmbeddedChunk` 목록 → 단일 document ID·고유 chunk ID·벡터 차원 검증 → Collection 생성 또는 설정 확인 → 기존 document ID Point 삭제 → UUID5 Point ID와 payload 변환 → wait 방식 upsert
 - 전체 색인 데이터 흐름: `data/documents`의 Markdown 6개 → 구조 기반 Chunk 28개 → OpenAI batch Embedding → 문서별 기존 Point 교체 → `career_documents` 영속 Collection
+- `.venv\Scripts\python.exe -m pytest -q tests/test_search.py tests/test_search_api.py`: 8 passed, 1 warning
+- `.venv\Scripts\python.exe -m pytest -q tests/test_search_integration.py --run-integration`: 1 passed
+- `.venv\Scripts\python.exe -m pytest -q --ignore=tests/test_health.py`: 61 passed, 4 skipped, 1 warning
+- `.venv\Scripts\python.exe -m pytest -q -m integration --run-integration`: 3 passed, 63 deselected, 1 warning
+- `.venv\Scripts\python.exe -m pytest -q`: 62 passed, 4 skipped, 1 warning
+- 실제 질문 `장애 대응 자동화 경험이 있나요?` 검색 결과 `incident-response-tool.md`가 score 0.4869와 0.4575로 1·2위에 반환됐다.
+- 답변 불가능 평가 질문의 상위 score가 0.2924, 0.2895, 0.2863이었고 threshold 0.5 적용 시 빈 결과가 반환됐다.
+- Vector Search 데이터 흐름: 질문 → OpenAI Embedding 1개 → Qdrant Cosine 검색 → top_k·threshold 적용 → content·source·score·metadata를 가진 결과 목록
 
 ## Learned
 
@@ -157,6 +171,8 @@ P1-05 — Vector Search
 - Qdrant는 임의 길이 문자열을 Point ID로 허용하지 않으므로 결정적 chunk ID를 UUID5로 변환하되 payload에는 원래 ID를 유지해야 한다.
 - 결정적 ID upsert만으로는 Chunk 수가 줄었을 때 stale Point가 남으므로 문서 단위 교체가 필요하다.
 - Qdrant 서버와 Python Client의 minor 버전 차이가 크면 호환성 경고가 발생하므로 같은 1.15 계열로 제한했다.
+- Cosine score는 질문과 문서 구성에 따라 달라지므로 threshold를 임의의 고정 정답으로 취급하지 않고 평가 질문으로 조정해야 한다.
+- 검색 API에서 answer를 제거하면 낮은 score와 빈 결과를 LLM의 표현에 가리지 않고 직접 관찰할 수 있다.
 
 ## Problems
 
@@ -165,7 +181,7 @@ P1-05 — Vector Search
 
 ## Next task
 
-P1-06 — Prompt와 답변 생성
+P1-07 — 재색인과 변경 감지
 
 ## Update rule
 

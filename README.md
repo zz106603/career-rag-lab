@@ -86,6 +86,25 @@ Invoke-RestMethod -Method Post `
     -Body $body
 ```
 
+색인이 끝난 문서에서 LLM 답변 생성 없이 관련 Chunk만 검색할 수 있다. 질문
+Embedding을 생성하므로 이 요청은 OpenAI API 비용이 소량 발생한다.
+
+```powershell
+$body = @{
+    query = "장애 대응 자동화 경험이 있나요?"
+    top_k = 5
+    score_threshold = 0.3
+} | ConvertTo-Json
+Invoke-RestMethod -Method Post `
+    -Uri "http://localhost:8000/search" `
+    -ContentType "application/json" `
+    -Body $body
+```
+
+응답의 `results`에는 `content`, `source`, `score`, `metadata`만 포함된다.
+`top_k`는 최대 결과 개수이며 `score_threshold`를 높이면 유사도가 낮은 근거는
+제외된다. 검색 근거가 부족하면 `results`가 빈 배열이 될 수 있다.
+
 실제 Qdrant 연결 상태를 검사하려면 통합 테스트를 실행한다.
 
 ```powershell
