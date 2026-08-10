@@ -224,3 +224,20 @@
 - 장점: 동일한 Chunk·모델·차원 설정을 사용하면서 호출 방식만 비교할 수 있고 기존 Qdrant 색인기와 증분 색인이 계속 동작한다.
 - 단점: 두 Embedding 경로와 응답 검증 코드가 일시적으로 공존하며, 실제 결과 비교는 동일 입력에 API 비용이 두 번 발생할 수 있다.
 - 재검토 조건: Qdrant VectorStore 교체 결과가 안정되어 LangChain 경로를 기본값으로 전환할 때
+
+---
+
+## D-013. VectorStore 비교에서는 기존 Embedding을 재사용한다
+
+- 날짜: 2026-08-10
+- 상태: 확정
+- 관련 Phase: Phase 2
+- 문제: 수동 Qdrant 색인과 LangChain VectorStore를 같은 조건에서 비교하면서 불필요한 OpenAI 비용과 다른 Embedding 값의 영향을 제거해야 한다.
+- 선택지:
+  - 각 색인 경로에서 OpenAI Embedding을 별도로 생성
+  - 이미 생성한 `EmbeddedChunk` 벡터를 LangChain Embeddings Adapter로 재사용
+- 결정: 비교용 `PrecomputedEmbeddings`가 예상 Chunk content에 기존 벡터를 반환하게 하고, 같은 Point UUID와 content key를 사용해 별도 Collection에 저장한다.
+- 이유: 비교 대상은 VectorStore의 저장 방식이며 Embedding 생성은 P2-02에서 이미 독립적으로 비교했기 때문이다.
+- 장점: 외부 API 비용 없이 동일 벡터·Point ID·content·metadata 보존 여부를 직접 비교할 수 있다.
+- 단점: LangChain은 metadata를 지정한 payload key 아래 중첩하므로 기존 평면 payload와 필터 경로가 달라진다.
+- 재검토 조건: LangChain VectorStore를 기본 색인 경로로 전환해 증분 상태 payload와 검색 필터를 통합할 때
