@@ -105,6 +105,25 @@ Invoke-RestMethod -Method Post `
 `top_k`는 최대 결과 개수이며 `score_threshold`를 높이면 유사도가 낮은 근거는
 제외된다. 검색 근거가 부족하면 `results`가 빈 배열이 될 수 있다.
 
+검색 결과를 근거로 자연어 답변을 생성하려면 `/answer`를 호출한다. 기본 생성
+모델은 비용을 최소화한 `gpt-5-nano`이며, 기준 score 이상의 상위 3개 Chunk만
+Context로 전달한다.
+
+```powershell
+$body = @{
+    query = "장애 대응 자동화 경험이 있나요?"
+} | ConvertTo-Json
+Invoke-RestMethod -Method Post `
+    -Uri "http://localhost:8000/answer" `
+    -ContentType "application/json" `
+    -Body $body
+```
+
+응답은 생성된 `answer`, 실제 Context 출처인 `sources`, threshold 적용 전 검색
+결과인 `retrieval`, 생성 여부인 `generated`를 분리해 반환한다. 근거가 기준보다
+낮으면 OpenAI 답변 생성 API를 호출하지 않고 `insufficient_evidence` 상태와
+고정된 거부 문구를 반환한다.
+
 실제 Qdrant 연결 상태를 검사하려면 통합 테스트를 실행한다.
 
 ```powershell
