@@ -6,35 +6,31 @@ Phase 2 — 수동 RAG 파이프라인을 LangChain으로 단계별 교체
 
 ## Current task
 
-P2-01 — Text Splitter 교체
+P2-02 — Embedding 추상화 교체
 
 ## Goal
 
-- 기존 수동 Chunker와 LangChain Text Splitter의 결과를 같은 문서에서 비교한다.
-- Chunk 개수, 길이, 경계, overlap과 metadata 보존 차이를 관찰한다.
-- 수동 구현은 유지한 채 Text Splitter만 단계적으로 교체한다.
+- 기존 수동 OpenAI Embedding 호출과 LangChain Embedding 추상화를 비교한다.
+- 입력·출력과 오류 경계를 관찰하면서 기존 색인 흐름을 유지한다.
 
 ## In scope
 
-- LangChain Text Splitter 최소 의존성 추가
-- 기존 구조 기반·고정 크기 Chunker와 동일 입력 비교
-- Chunk 개수·평균 길이·경계·overlap 비교
-- source와 metadata 보존
-- 비교 테스트와 결과 기록
+- LangChain OpenAI Embedding 최소 의존성 추가
+- 동일 Chunk 입력에서 수동 구현과 결과 형태 비교
+- batch, 모델, 차원 설정과 오류 처리 비교
+- 기존 Qdrant 색인 입력 형태 유지
 
 ## Out of scope
 
-- Embedding 추상화 교체
 - Qdrant VectorStore 교체
 - Retriever와 PromptTemplate 적용
-- 기존 수동 Chunker 삭제
+- 기존 수동 Embedding 구현 삭제
 
 ## Completion criteria
 
-- 같은 입력에서 수동 Chunker와 LangChain Splitter 결과를 나란히 확인할 수 있다.
-- Chunk 개수, 평균 길이, 경계와 overlap 차이를 설명할 수 있다.
-- LangChain 결과에도 source와 필요한 metadata가 보존된다.
-- 기존 수동 파이프라인이 계속 실행된다.
+- 같은 Chunk 입력에서 수동 구현과 LangChain Embedding 결과를 비교할 수 있다.
+- LangChain 결과를 기존 `EmbeddedChunk` 색인 입력으로 변환할 수 있다.
+- 기존 수동 Embedding과 색인 파이프라인이 계속 실행된다.
 
 ## Completed
 
@@ -114,6 +110,12 @@ P2-01 — Text Splitter 교체
   - 수정 문서는 기존 Point를 현재 Chunk로 교체하고 디렉터리에서 사라진 문서의 Point를 삭제한다.
   - Embedding과 수정 문서 저장이 끝난 뒤 삭제를 수행해 Embedding 실패 시 기존 문서가 먼저 사라지지 않게 했다.
   - Qdrant payload를 상태 저장소로 사용하는 결정을 `docs/DECISIONS.md`의 D-010에 기록했다.
+- P2-01 Text Splitter 교체
+  - `langchain-text-splitters` 최소 의존성과 `RecursiveCharacterTextSplitter` 비교 구현을 추가했다.
+  - 기존 구조 기반·고정 크기 Chunker를 유지하면서 같은 문서의 Chunk 개수, 평균 길이, 원문 경계와 실제 overlap을 나란히 요약한다.
+  - LangChain `start_index`를 기존 `ChunkMetadata`의 원문 범위로 변환하고 source, section, 문서 유형, 프로젝트명을 보존했다.
+  - 비교 결과를 직접 확인하는 `python -m app.compare_chunking` 명령을 추가했다.
+  - Text Splitter 선택과 실제 overlap 차이를 `docs/DECISIONS.md`의 D-011에 기록했다.
 
 ## Verified
 
@@ -174,6 +176,9 @@ P2-01 — Text Splitter 교체
 - `.venv\Scripts\python.exe -m pytest -q -m integration --run-integration`: 4 passed, 79 deselected, 1 warning
 - 실제 Docker Qdrant 임시 Collection에서 문서 2개 최초 추가, 변경 없는 두 번째 실행의 Embedding 0개, 이후 문서 1개 수정·1개 삭제와 Hash payload 보존을 확인했다.
 - 증분 색인 데이터 흐름: 현재 Markdown 원문 Hash·색인 fingerprint 계산 → Qdrant 문서 상태 조회 → added·updated·unchanged·deleted 분류 → 변경 Chunk만 Embedding → 문서 단위 교체 → 삭제 문서 Point 정리 → 실행 집계 반환
+- `.venv\Scripts\python.exe -m pytest -q tests/test_chunking.py`: 14 passed
+- 180자·overlap 20 비교: 수동 구조 기반 5개/평균 119.20자/실제 overlap 없음, 수동 고정 크기 4개/평균 164.00자/매 경계 20자, LangChain 재귀 분할 4개/평균 150.75자/실제 overlap 0·0·7자를 확인했다.
+- Text Splitter 비교 데이터 흐름: Markdown `Document` → 수동 2개 전략과 LangChain 재귀 분할 → LangChain `start_index`를 원문 범위로 변환 → 기존 source·section·문서 metadata 결합 → 전략별 개수·평균 길이·경계·실제 overlap 요약
 
 ## Learned
 
@@ -203,6 +208,8 @@ P2-01 — Text Splitter 교체
 - 원문 Hash만 비교하면 Chunk 크기나 Embedding 모델 변경을 놓치므로 색인 설정을 포함한 fingerprint가 함께 필요하다.
 - Qdrant payload에 문서 상태를 저장하면 별도 데이터베이스 없이 삭제 문서를 찾을 수 있지만 모든 Chunk에 같은 상태 값이 중복된다.
 - 삭제를 변경 문서 Embedding 뒤로 미루면 외부 API 실패 시 기존 검색 가능 상태를 보존할 수 있다.
+- LangChain의 `chunk_overlap`은 목표 최대 overlap이며 자연스러운 separator 경계가 멀리 떨어져 있으면 모든 인접 Chunk가 설정값만큼 겹치지는 않는다.
+- `start_index`를 사용하면 LangChain 결과도 원문 범위로 검증할 수 있지만 section 같은 프로젝트 metadata는 기존 규칙으로 명시적으로 보완해야 한다.
 
 ## Problems
 
@@ -213,7 +220,7 @@ P2-01 — Text Splitter 교체
 
 ## Next task
 
-P2-02 — Embedding 추상화 교체
+P2-03 — Qdrant VectorStore 교체
 
 ## Update rule
 
