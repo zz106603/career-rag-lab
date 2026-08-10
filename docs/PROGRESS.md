@@ -6,37 +6,37 @@ Phase 1 — LangChain 없이 RAG 직접 구현
 
 ## Current task
 
-P1-06 — Prompt와 답변 생성
+P1-07 — 재색인과 변경 감지
 
 ## Goal
 
-- 검색된 Chunk만 Context로 사용해 질문에 답한다.
-- 답변에 사용한 출처를 검색 결과와 별도로 반환한다.
-- 검색 근거가 부족하면 LLM 호출 없이 답변을 거부한다.
+- 원문이 바뀌지 않은 문서는 Embedding과 색인을 생략한다.
+- 수정된 문서는 현재 Chunk로 교체하고 삭제된 문서의 Point를 정리한다.
+- 변경 없음, 수정, 삭제 결과를 관찰할 수 있게 한다.
 
 ## In scope
 
-- 질문과 Context를 구분한 Prompt 구성
-- 검색 결과 기반 OpenAI 답변 생성
-- 답변과 출처 응답 구조
-- 근거 부족 판정과 LLM 호출 생략
-- 검색 결과와 생성 답변의 분리 관찰
-- 단위 테스트와 실제 API 검증
+- 원문 Hash 저장과 비교
+- 변경되지 않은 문서 처리 생략
+- 수정 문서 재색인
+- 삭제 문서 Point 정리
+- 재색인 결과 집계
+- 단위 테스트와 실제 Qdrant 통합 테스트
 
 ## Out of scope
 
-- 문서 변경 감지와 증분 재색인
+- 파일 시스템 실시간 감시
+- 작업 큐와 스케줄러
 - Hybrid Search와 reranking
-- 대화 기록과 멀티턴 질의
 - LangChain
 
 ## Completion criteria
 
-- 검색 결과와 생성 답변을 별도로 확인할 수 있다.
-- 답변에 사용된 출처를 확인할 수 있다.
-- 문서 근거 안에서만 답변하도록 Prompt가 제한한다.
-- 근거가 부족하면 LLM을 호출하지 않고 답변을 거부한다.
-- 문서에 없는 경험을 사실처럼 생성하지 않는다.
+- 변경 없음, 수정, 삭제 시나리오가 구분된다.
+- 변경되지 않은 문서는 OpenAI Embedding을 다시 호출하지 않는다.
+- 문서 수정 후 이전 Chunk가 남지 않는다.
+- 삭제된 문서의 Point가 제거된다.
+- 재색인 결과를 집계로 확인할 수 있다.
 
 ## Completed
 
@@ -102,6 +102,13 @@ P1-06 — Prompt와 답변 생성
   - `top_k`와 score threshold를 요청별로 조정하고 근거가 없으면 빈 목록을 반환하도록 했다.
   - LLM과 answer 필드 없이 검색 근거만 반환하는 `POST /search` API를 추가했다.
   - 검색과 생성 답변 분리 결정을 `docs/DECISIONS.md`의 D-008에 기록했다.
+- P1-06 Prompt와 답변 생성
+  - 검색 결과를 질문과 분리된 Context로 구성하고 검색 문서만 사용하도록 제한하는 Prompt를 구현했다.
+  - threshold 이상의 상위 검색 근거가 있을 때만 `gpt-5-nano` Responses API로 답변을 생성한다.
+  - `answer`, `sources`, threshold 적용 전 `retrieval`, `generated`를 분리한 `POST /answer` API를 추가했다.
+  - 근거가 부족하면 OpenAI 답변 생성을 호출하지 않고 고정된 거부 응답을 반환한다.
+  - 검색 단계 실패와 생성 단계 실패를 `retrieval_failed`, `generation_failed`로 구분했다.
+  - 저비용 모델과 생성 전 근거 판정을 `docs/DECISIONS.md`의 D-009에 기록했다.
 
 ## Verified
 
@@ -150,6 +157,12 @@ P1-06 — Prompt와 답변 생성
 - 실제 질문 `장애 대응 자동화 경험이 있나요?` 검색 결과 `incident-response-tool.md`가 score 0.4869와 0.4575로 1·2위에 반환됐다.
 - 답변 불가능 평가 질문의 상위 score가 0.2924, 0.2895, 0.2863이었고 threshold 0.5 적용 시 빈 결과가 반환됐다.
 - Vector Search 데이터 흐름: 질문 → OpenAI Embedding 1개 → Qdrant Cosine 검색 → top_k·threshold 적용 → content·source·score·metadata를 가진 결과 목록
+- `.venv\Scripts\python.exe -m pytest -q tests/test_answers.py tests/test_answer_api.py tests/test_config.py`: 19 passed, 1 warning
+- `.venv\Scripts\python.exe -m pytest -q tests/test_answers_live.py --run-live-api`: 1 passed
+- `.venv\Scripts\python.exe -m pytest -q`: 73 passed, 5 skipped, 1 warning
+- `.venv\Scripts\python.exe -m pytest -q -m integration --run-integration`: 3 passed, 75 deselected, 1 warning
+- 실제 `gpt-5-nano` Responses API에 짧은 합성 근거 하나를 전달해 비어 있지 않은 한국어 답변과 출처 반환을 확인했다.
+- 답변 데이터 흐름: 질문 → 검색 결과 전체 보존 → score threshold 이상의 근거 선택 → 근거 없음이면 생성 생략·거부 → 근거 있음이면 질문·Context 분리 Prompt → `gpt-5-nano` → answer·sources와 retrieval 분리 반환
 
 ## Learned
 
@@ -173,15 +186,19 @@ P1-06 — Prompt와 답변 생성
 - Qdrant 서버와 Python Client의 minor 버전 차이가 크면 호환성 경고가 발생하므로 같은 1.15 계열로 제한했다.
 - Cosine score는 질문과 문서 구성에 따라 달라지므로 threshold를 임의의 고정 정답으로 취급하지 않고 평가 질문으로 조정해야 한다.
 - 검색 API에서 answer를 제거하면 낮은 score와 빈 결과를 LLM의 표현에 가리지 않고 직접 관찰할 수 있다.
+- threshold 적용 전 retrieval을 응답에 남겨야 답변 거부가 검색 결과 없음 때문인지 낮은 score 때문인지 확인할 수 있다.
+- 근거 부족을 LLM Prompt에만 맡기지 않고 생성 호출 전에 판정하면 hallucination 가능성과 API 비용을 함께 줄일 수 있다.
+- 검색과 생성 예외를 다른 타입과 API 오류 코드로 바꾸면 어느 외부 단계가 실패했는지 구분할 수 있다.
 
 ## Problems
 
 - 테스트는 통과하지만 현재 설치된 Starlette가 기존 `httpx` 기반 `TestClient` 사용에 대한 deprecation warning을 출력한다. 동작에는 영향이 없으며 향후 의존성 조합을 갱신할 때 확인한다.
 - 제한된 실행 환경에서는 Windows 소켓 생성이 `WinError 10014`로 실패했지만, 로컬 권한으로 실행한 전체 테스트와 Qdrant 통합 테스트는 통과했다.
+- 실제 영속 Collection의 검색 원문을 OpenAI 답변 생성으로 보내는 end-to-end 실행은 외부 데이터 전송 보안 검토에서 차단됐다. 합성 근거의 실제 OpenAI 호출과 실제 Qdrant 검색은 각각 독립적으로 검증했다.
 
 ## Next task
 
-P1-07 — 재색인과 변경 감지
+P2-01 — Text Splitter 교체
 
 ## Update rule
 
