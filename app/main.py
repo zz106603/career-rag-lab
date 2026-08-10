@@ -1,9 +1,16 @@
 from dataclasses import asdict
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import Depends, FastAPI
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+from app.answers import (
+    AnswerGenerationError,
+    AnswerService,
+    RetrievalPipelineError,
+    create_answer_service,
+)
 from app.search import SearchService, create_search_service
 
 app = FastAPI(title="career-rag-lab")
@@ -26,8 +33,52 @@ class SearchResponse(BaseModel):
     results: list[dict[str, Any]]
 
 
+class AnswerRequest(BaseModel):
+    query: str = Field(min_length=1)
+    top_k: int | None = Field(default=None, ge=1, le=20)
+    score_threshold: float | None = Field(default=None, ge=-1.0, le=1.0)
+
+
+class AnswerResponse(BaseModel):
+    status: Literal["answered", "insufficient_evidence"]
+    answer: str
+    sources: list[str]
+    retrieval: list[dict[str, Any]]
+    generated: bool
+
+
 def get_search_service() -> SearchService:
     return create_search_service()
+
+
+def get_answer_service() -> AnswerService:
+    return create_answer_service()
+
+
+@app.exception_handler(RetrievalPipelineError)
+def handle_retrieval_failure(
+    _request: Any, _error: RetrievalPipelineError
+) -> JSONResponse:
+    """검색 단계 실패를 답변 생성 실패와 구분하되 내부 예외는 노출하지 않는다."""
+    return JSONResponse(
+        status_code=502,
+        content={"detail": {"code": "retrieval_failed", "message": "검색에 실패했습니다."}},
+    )
+
+
+@app.exception_handler(AnswerGenerationError)
+def handle_generation_failure(
+    _request: Any, _error: AnswerGenerationError
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=502,
+        content={
+            "detail": {
+                "code": "generation_failed",
+                "message": "답변 생성에 실패했습니다.",
+            }
+        },
+    )
 
 
 @app.post("/search", response_model=SearchResponse)
@@ -44,4 +95,24 @@ def search(
     return SearchResponse(
         query=request.query,
         results=[asdict(result) for result in results],
+    )
+
+
+@app.post("/answer", response_model=AnswerResponse)
+def answer(
+    request: AnswerRequest,
+    service: Annotated[AnswerService, Depends(get_answer_service)],
+) -> AnswerResponse:
+    """검색 근거가 있을 때만 답변을 생성하고 retrieval을 함께 반환한다."""
+    result = service.answer(
+        request.query,
+        top_k=request.top_k,
+        score_threshold=request.score_threshold,
+    )
+    return AnswerResponse(
+        status=result.status,
+        answer=result.answer,
+        sources=result.sources,
+        retrieval=[asdict(item) for item in result.retrieval],
+        generated=result.generated,
     )
