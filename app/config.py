@@ -18,6 +18,10 @@ class Settings:
     embedding_model: str
     embedding_dimensions: int
     embedding_batch_size: int
+    chat_model: str = "gpt-5-nano"
+    answer_max_output_tokens: int = 300
+    answer_top_k: int = 3
+    answer_score_threshold: float = 0.4
 
 
 def get_settings() -> Settings:
@@ -36,6 +40,12 @@ def get_settings() -> Settings:
         embedding_batch_size=_positive_int_env(
             "OPENAI_EMBEDDING_BATCH_SIZE", default=100
         ),
+        chat_model=os.getenv("OPENAI_CHAT_MODEL", "gpt-5-nano"),
+        answer_max_output_tokens=_positive_int_env(
+            "OPENAI_ANSWER_MAX_OUTPUT_TOKENS", default=300
+        ),
+        answer_top_k=_positive_int_env("ANSWER_TOP_K", default=3),
+        answer_score_threshold=_score_env("ANSWER_SCORE_THRESHOLD", default=0.4),
     )
 
 
@@ -47,4 +57,15 @@ def _positive_int_env(name: str, default: int) -> int:
         raise ValueError(f"{name} must be an integer") from error
     if value <= 0:
         raise ValueError(f"{name} must be greater than 0")
+    return value
+
+
+def _score_env(name: str, default: float) -> float:
+    raw_value = os.getenv(name, str(default))
+    try:
+        value = float(raw_value)
+    except ValueError as error:
+        raise ValueError(f"{name} must be a number") from error
+    if not -1.0 <= value <= 1.0:
+        raise ValueError(f"{name} must be between -1 and 1")
     return value
