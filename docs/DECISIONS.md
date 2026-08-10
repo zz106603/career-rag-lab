@@ -207,3 +207,20 @@
 - 장점: Embedding과 VectorStore를 바꾸지 않고 LangChain의 경계 선택 및 overlap 동작만 분리해 관찰할 수 있으며 source·section·원문 위치를 계속 보존한다.
 - 단점: 설정한 overlap은 separator 선택에 따라 실제 모든 Chunk 경계에 동일하게 적용되지 않으며, section은 원문 시작 위치를 이용해 기존 metadata 규칙으로 보완한다.
 - 재검토 조건: Markdown 제목 metadata를 LangChain 자체 splitter에서 직접 생성하거나 token 기반 길이 제한이 필요할 때
+
+---
+
+## D-012. LangChain Embedding 결과를 기존 색인 모델로 변환한다
+
+- 날짜: 2026-08-10
+- 상태: 확정
+- 관련 Phase: Phase 2
+- 문제: Embedding 추상화를 교체하면서 수동 OpenAI 호출과 Qdrant 색인 사이의 데이터 흐름을 비교 가능하게 유지해야 한다.
+- 선택지:
+  - 색인 파이프라인 전체를 LangChain 타입으로 즉시 변경
+  - LangChain `OpenAIEmbeddings` 결과만 기존 `EmbeddedChunk`로 변환
+- 결정: `langchain-openai`의 `OpenAIEmbeddings.embed_documents()`를 추가하되 반환 벡터를 기존 `EmbeddedChunk`로 변환하고, 수동 `embed_chunks()` 구현도 유지한다.
+- 이유: 이번 단계의 교체 범위를 Embedding 호출 추상화에 한정하고 Qdrant 저장 방식은 다음 단계에서 독립적으로 비교해야 한다.
+- 장점: 동일한 Chunk·모델·차원 설정을 사용하면서 호출 방식만 비교할 수 있고 기존 Qdrant 색인기와 증분 색인이 계속 동작한다.
+- 단점: 두 Embedding 경로와 응답 검증 코드가 일시적으로 공존하며, 실제 결과 비교는 동일 입력에 API 비용이 두 번 발생할 수 있다.
+- 재검토 조건: Qdrant VectorStore 교체 결과가 안정되어 LangChain 경로를 기본값으로 전환할 때

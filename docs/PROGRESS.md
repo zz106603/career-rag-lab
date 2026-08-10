@@ -6,31 +6,30 @@ Phase 2 — 수동 RAG 파이프라인을 LangChain으로 단계별 교체
 
 ## Current task
 
-P2-02 — Embedding 추상화 교체
+P2-03 — Qdrant VectorStore 교체
 
 ## Goal
 
-- 기존 수동 OpenAI Embedding 호출과 LangChain Embedding 추상화를 비교한다.
-- 입력·출력과 오류 경계를 관찰하면서 기존 색인 흐름을 유지한다.
+- 기존 Qdrant Client 기반 색인과 LangChain Qdrant VectorStore를 비교한다.
+- 저장되는 content, vector, source와 metadata를 같은 Collection 구조에서 관찰한다.
 
 ## In scope
 
-- LangChain OpenAI Embedding 최소 의존성 추가
-- 동일 Chunk 입력에서 수동 구현과 결과 형태 비교
-- batch, 모델, 차원 설정과 오류 처리 비교
-- 기존 Qdrant 색인 입력 형태 유지
+- LangChain Qdrant VectorStore 최소 의존성 추가
+- 동일 Chunk와 Embedding에서 수동 색인 방식 비교
+- source, metadata와 Point 식별자 보존
+- 실제 Qdrant 비교 테스트
 
 ## Out of scope
 
-- Qdrant VectorStore 교체
 - Retriever와 PromptTemplate 적용
-- 기존 수동 Embedding 구현 삭제
+- 기존 수동 Qdrant 색인 구현 삭제
 
 ## Completion criteria
 
-- 같은 Chunk 입력에서 수동 구현과 LangChain Embedding 결과를 비교할 수 있다.
-- LangChain 결과를 기존 `EmbeddedChunk` 색인 입력으로 변환할 수 있다.
-- 기존 수동 Embedding과 색인 파이프라인이 계속 실행된다.
+- 동일 입력을 수동 색인과 LangChain VectorStore에 저장해 비교할 수 있다.
+- 검색에 필요한 content, source와 metadata가 보존된다.
+- 기존 수동 Qdrant 색인과 검색 파이프라인이 계속 실행된다.
 
 ## Completed
 
@@ -116,6 +115,12 @@ P2-02 — Embedding 추상화 교체
   - LangChain `start_index`를 기존 `ChunkMetadata`의 원문 범위로 변환하고 source, section, 문서 유형, 프로젝트명을 보존했다.
   - 비교 결과를 직접 확인하는 `python -m app.compare_chunking` 명령을 추가했다.
   - Text Splitter 선택과 실제 overlap 차이를 `docs/DECISIONS.md`의 D-011에 기록했다.
+- P2-02 Embedding 추상화 교체
+  - `langchain-openai` 최소 의존성과 `OpenAIEmbeddings` 생성 함수를 추가했다.
+  - 기존과 같은 `text-embedding-3-small`, 차원, batch 크기, API 키 설정을 LangChain에 전달한다.
+  - LangChain `embed_documents()` 반환값의 개수·차원을 검증하고 기존 `EmbeddedChunk`로 변환한다.
+  - 수동 OpenAI SDK 호출 구현과 기존 Qdrant 색인 파이프라인은 그대로 유지했다.
+  - 추상화 경계와 단계적 교체 결정을 `docs/DECISIONS.md`의 D-012에 기록했다.
 
 ## Verified
 
@@ -179,6 +184,9 @@ P2-02 — Embedding 추상화 교체
 - `.venv\Scripts\python.exe -m pytest -q tests/test_chunking.py`: 14 passed
 - 180자·overlap 20 비교: 수동 구조 기반 5개/평균 119.20자/실제 overlap 없음, 수동 고정 크기 4개/평균 164.00자/매 경계 20자, LangChain 재귀 분할 4개/평균 150.75자/실제 overlap 0·0·7자를 확인했다.
 - Text Splitter 비교 데이터 흐름: Markdown `Document` → 수동 2개 전략과 LangChain 재귀 분할 → LangChain `start_index`를 원문 범위로 변환 → 기존 source·section·문서 metadata 결합 → 전략별 개수·평균 길이·경계·실제 overlap 요약
+- `.venv\Scripts\python.exe -m pytest -q tests/test_embeddings.py tests/test_indexing.py`: 25 passed
+- `.venv\Scripts\python.exe -m pytest -q`: 89 passed, 7 skipped, 1 warning
+- LangChain Embedding 데이터 흐름: `Settings`의 API 키·모델·차원·batch 크기 → `OpenAIEmbeddings` → Chunk content 목록을 `embed_documents()`에 전달 → 반환 개수·차원 검증 → 원본 Chunk와 결합한 기존 `EmbeddedChunk` → 기존 Qdrant 색인기
 
 ## Learned
 
@@ -210,6 +218,8 @@ P2-02 — Embedding 추상화 교체
 - 삭제를 변경 문서 Embedding 뒤로 미루면 외부 API 실패 시 기존 검색 가능 상태를 보존할 수 있다.
 - LangChain의 `chunk_overlap`은 목표 최대 overlap이며 자연스러운 separator 경계가 멀리 떨어져 있으면 모든 인접 Chunk가 설정값만큼 겹치지는 않는다.
 - `start_index`를 사용하면 LangChain 결과도 원문 범위로 검증할 수 있지만 section 같은 프로젝트 metadata는 기존 규칙으로 명시적으로 보완해야 한다.
+- LangChain `OpenAIEmbeddings`는 batch 분할과 OpenAI SDK 호출을 내부로 감추지만, 결과 개수·차원과 원본 Chunk 연결은 애플리케이션 경계에서 계속 검증해야 한다.
+- LangChain 결과를 기존 도메인 모델로 변환하면 다음 추상화를 교체하기 전까지 downstream 코드를 바꾸지 않아도 된다.
 
 ## Problems
 
@@ -220,7 +230,7 @@ P2-02 — Embedding 추상화 교체
 
 ## Next task
 
-P2-03 — Qdrant VectorStore 교체
+P2-04 — Retriever 교체
 
 ## Update rule
 
