@@ -34,6 +34,20 @@ def test_embedding_settings_use_low_cost_defaults(monkeypatch) -> None:
     assert settings.embedding_batch_size == 100
 
 
+def test_answer_settings_use_low_cost_defaults(monkeypatch) -> None:
+    monkeypatch.delenv("OPENAI_CHAT_MODEL", raising=False)
+    monkeypatch.delenv("OPENAI_ANSWER_MAX_OUTPUT_TOKENS", raising=False)
+    monkeypatch.delenv("ANSWER_TOP_K", raising=False)
+    monkeypatch.delenv("ANSWER_SCORE_THRESHOLD", raising=False)
+
+    settings = get_settings()
+
+    assert settings.chat_model == "gpt-5-nano"
+    assert settings.answer_max_output_tokens == 300
+    assert settings.answer_top_k == 3
+    assert settings.answer_score_threshold == 0.4
+
+
 def test_embedding_settings_use_environment_variables(monkeypatch) -> None:
     monkeypatch.setenv("OPENAI_EMBEDDING_MODEL", "custom-embedding-model")
     monkeypatch.setenv("OPENAI_EMBEDDING_DIMENSIONS", "512")
