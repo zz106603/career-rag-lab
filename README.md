@@ -56,6 +56,11 @@ Embedding을 재사용하므로 VectorStore 비교 중 OpenAI API를 다시 호�
 수동 payload는 metadata가 최상위에 있고, LangChain payload는 `metadata` 객체
 아래에 중첩된다는 차이가 있다.
 
+검색 비교에서도 기존 `QdrantSearcher`와 LangChain Retriever를 함께 유지한다.
+일반 Retriever 반환값에는 유사도 score가 포함되지 않으므로 이 프로젝트의
+Retriever는 Qdrant의 `(Document, score)` 결과를 받아 score를 명시적으로
+`SearchResult`에 복원한다. 따라서 검색 근거는 답변 생성과 계속 분리된다.
+
 ## Chunking 전략 비교
 
 기존 수동 구조 기반·고정 크기 Chunker와 LangChain의

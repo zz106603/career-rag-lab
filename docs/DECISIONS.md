@@ -241,3 +241,20 @@
 - 장점: 외부 API 비용 없이 동일 벡터·Point ID·content·metadata 보존 여부를 직접 비교할 수 있다.
 - 단점: LangChain은 metadata를 지정한 payload key 아래 중첩하므로 기존 평면 payload와 필터 경로가 달라진다.
 - 재검토 조건: LangChain VectorStore를 기본 색인 경로로 전환해 증분 상태 payload와 검색 필터를 통합할 때
+
+---
+
+## D-014. Retriever에서도 검색 score를 별도로 보존한다
+
+- 날짜: 2026-08-10
+- 상태: 확정
+- 관련 Phase: Phase 2
+- 문제: 일반적인 LangChain Retriever는 `Document` 목록을 반환해 Qdrant 유사도 score가 최종 검색 결과에서 보이지 않는다.
+- 선택지:
+  - score 없이 기본 `VectorStoreRetriever` 사용
+  - `BaseRetriever`를 확장해 VectorStore의 `(Document, score)`를 metadata에 전달한 뒤 기존 `SearchResult`로 변환
+- 결정: `ObservableQdrantRetriever`가 `similarity_search_with_score()`를 호출하고 score를 보존하며, 서비스 경계에서 기존 `SearchResult`로 변환한다.
+- 이유: 검색과 답변 품질을 분리해서 평가하려면 top_k와 threshold뿐 아니라 실제 score도 계속 관찰할 수 있어야 한다.
+- 장점: 기존 `/search` 응답 계약과 답변의 retrieval 필드를 유지하면서 LangChain Retriever 인터페이스를 사용할 수 있다.
+- 단점: 기본 Retriever를 그대로 사용하는 것보다 얇은 사용자 정의 계층이 추가되며 LangChain의 내부 payload 식별 metadata도 함께 반환된다.
+- 재검토 조건: LangChain이 Retriever 결과 score를 표준 필드로 제공하거나 평가 계층에서 별도 trace로 score를 관리할 때
