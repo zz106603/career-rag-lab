@@ -25,6 +25,14 @@ class IndexResult:
     point_ids: list[str]
 
 
+@dataclass(frozen=True)
+class IndexedDocumentState:
+    document_id: str
+    source: str
+    document_hash: str | None
+    index_fingerprint: str | None
+
+
 class QdrantIndexer:
     """EmbeddedChunk를 Qdrant Point로 변환하고 문서 단위로 관리한다."""
 
@@ -71,7 +79,13 @@ class QdrantIndexer:
             )
         return False
 
-    def index_document(self, items: list[EmbeddedChunk]) -> IndexResult:
+    def index_document(
+        self,
+        items: list[EmbeddedChunk],
+        *,
+        document_hash: str | None = None,
+        index_fingerprint: str | None = None,
+    ) -> IndexResult:
         """한 문서의 기존 Point를 지우고 현재 Chunk 집합으로 교체한다."""
         document_id = self._validate_items(items)
         self.ensure_collection()
@@ -79,7 +93,14 @@ class QdrantIndexer:
         # 벡터 검증이 모두 끝난 뒤 삭제해야 잘못된 입력 때문에 기존 색인이
         # 먼저 사라지는 일을 막을 수 있다.
         self.delete_document(document_id)
-        points = [self._to_point(item) for item in items]
+        points = [
+            self._to_point(
+                item,
+                document_hash=document_hash,
+                index_fingerprint=index_fingerprint,
+            )
+            for item in items
+        ]
         self.client.upsert(
             collection_name=self.collection_name,
             points=points,
@@ -107,6 +128,52 @@ class QdrantIndexer:
         )
         return result.count
 
+    def list_indexed_documents(self) -> dict[str, IndexedDocumentState]:
+        """Collection의 Point payload에서 문서별 현재 색인 상태를 읽는다."""
+        if not self.client.collection_exists(self.collection_name):
+            return {}
+
+        states: dict[str, IndexedDocumentState] = {}
+        offset = None
+        while True:
+            records, offset = self.client.scroll(
+                collection_name=self.collection_name,
+                limit=256,
+                offset=offset,
+                with_payload=[
+                    "document_id",
+                    "source",
+                    "document_hash",
+                    "index_fingerprint",
+                ],
+                with_vectors=False,
+            )
+            for record in records:
+                payload = record.payload or {}
+                document_id = payload.get("document_id")
+                source = payload.get("source")
+                if not isinstance(document_id, str) or not isinstance(source, str):
+                    raise IndexingError(
+                        "Indexed Point requires string document_id and source"
+                    )
+                state = IndexedDocumentState(
+                    document_id=document_id,
+                    source=source,
+                    document_hash=_optional_string(payload.get("document_hash")),
+                    index_fingerprint=_optional_string(
+                        payload.get("index_fingerprint")
+                    ),
+                )
+                previous = states.get(document_id)
+                if previous is not None and previous != state:
+                    raise IndexingError(
+                        f"Indexed document state is inconsistent: {document_id}"
+                    )
+                states[document_id] = state
+            if offset is None:
+                break
+        return states
+
     def _validate_items(self, items: list[EmbeddedChunk]) -> str:
         if not items:
             raise InvalidIndexInputError("At least one EmbeddedChunk is required")
@@ -126,7 +193,13 @@ class QdrantIndexer:
                 )
         return next(iter(document_ids))
 
-    def _to_point(self, item: EmbeddedChunk) -> models.PointStruct:
+    def _to_point(
+        self,
+        item: EmbeddedChunk,
+        *,
+        document_hash: str | None,
+        index_fingerprint: str | None,
+    ) -> models.PointStruct:
         chunk = item.chunk
         metadata = chunk.metadata
         # Qdrant Point ID는 UUID 또는 정수여야 하므로 결정적 chunk_id를 UUID5로
@@ -145,6 +218,10 @@ class QdrantIndexer:
             "start_char": metadata.start_char,
             "end_char": metadata.end_char,
         }
+        if document_hash is not None:
+            payload["document_hash"] = document_hash
+        if index_fingerprint is not None:
+            payload["index_fingerprint"] = index_fingerprint
         return models.PointStruct(id=point_id, vector=item.vector, payload=payload)
 
 
@@ -169,4 +246,12 @@ def _document_filter(document_id: str) -> models.Filter:
             )
         ]
     )
+
+
+def _optional_string(value: object) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise IndexingError("Indexed document hashes must be strings")
+    return value
 
