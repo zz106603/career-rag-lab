@@ -2,41 +2,39 @@
 
 ## Current phase
 
-Phase 1 — LangChain 없이 RAG 직접 구현
+Phase 2 — 수동 RAG 파이프라인을 LangChain으로 단계별 교체
 
 ## Current task
 
-P1-07 — 재색인과 변경 감지
+P2-01 — Text Splitter 교체
 
 ## Goal
 
-- 원문이 바뀌지 않은 문서는 Embedding과 색인을 생략한다.
-- 수정된 문서는 현재 Chunk로 교체하고 삭제된 문서의 Point를 정리한다.
-- 변경 없음, 수정, 삭제 결과를 관찰할 수 있게 한다.
+- 기존 수동 Chunker와 LangChain Text Splitter의 결과를 같은 문서에서 비교한다.
+- Chunk 개수, 길이, 경계, overlap과 metadata 보존 차이를 관찰한다.
+- 수동 구현은 유지한 채 Text Splitter만 단계적으로 교체한다.
 
 ## In scope
 
-- 원문 Hash 저장과 비교
-- 변경되지 않은 문서 처리 생략
-- 수정 문서 재색인
-- 삭제 문서 Point 정리
-- 재색인 결과 집계
-- 단위 테스트와 실제 Qdrant 통합 테스트
+- LangChain Text Splitter 최소 의존성 추가
+- 기존 구조 기반·고정 크기 Chunker와 동일 입력 비교
+- Chunk 개수·평균 길이·경계·overlap 비교
+- source와 metadata 보존
+- 비교 테스트와 결과 기록
 
 ## Out of scope
 
-- 파일 시스템 실시간 감시
-- 작업 큐와 스케줄러
-- Hybrid Search와 reranking
-- LangChain
+- Embedding 추상화 교체
+- Qdrant VectorStore 교체
+- Retriever와 PromptTemplate 적용
+- 기존 수동 Chunker 삭제
 
 ## Completion criteria
 
-- 변경 없음, 수정, 삭제 시나리오가 구분된다.
-- 변경되지 않은 문서는 OpenAI Embedding을 다시 호출하지 않는다.
-- 문서 수정 후 이전 Chunk가 남지 않는다.
-- 삭제된 문서의 Point가 제거된다.
-- 재색인 결과를 집계로 확인할 수 있다.
+- 같은 입력에서 수동 Chunker와 LangChain Splitter 결과를 나란히 확인할 수 있다.
+- Chunk 개수, 평균 길이, 경계와 overlap 차이를 설명할 수 있다.
+- LangChain 결과에도 source와 필요한 metadata가 보존된다.
+- 기존 수동 파이프라인이 계속 실행된다.
 
 ## Completed
 
@@ -109,6 +107,13 @@ P1-07 — 재색인과 변경 감지
   - 근거가 부족하면 OpenAI 답변 생성을 호출하지 않고 고정된 거부 응답을 반환한다.
   - 검색 단계 실패와 생성 단계 실패를 `retrieval_failed`, `generation_failed`로 구분했다.
   - 저비용 모델과 생성 전 근거 판정을 `docs/DECISIONS.md`의 D-009에 기록했다.
+- P1-07 재색인과 변경 감지
+  - 원문 SHA-256 `document_hash`와 색인 설정을 포함한 `index_fingerprint`를 Qdrant payload에 저장했다.
+  - 현재 문서와 Qdrant 상태를 비교해 added, updated, unchanged, deleted를 구분하도록 전체 색인 명령을 증분 방식으로 변경했다.
+  - 변경된 문서의 Chunk만 모아 OpenAI Embedding하고, 변경이 없으면 OpenAI 클라이언트 생성과 Qdrant 쓰기를 생략한다.
+  - 수정 문서는 기존 Point를 현재 Chunk로 교체하고 디렉터리에서 사라진 문서의 Point를 삭제한다.
+  - Embedding과 수정 문서 저장이 끝난 뒤 삭제를 수행해 Embedding 실패 시 기존 문서가 먼저 사라지지 않게 했다.
+  - Qdrant payload를 상태 저장소로 사용하는 결정을 `docs/DECISIONS.md`의 D-010에 기록했다.
 
 ## Verified
 
@@ -163,6 +168,12 @@ P1-07 — 재색인과 변경 감지
 - `.venv\Scripts\python.exe -m pytest -q -m integration --run-integration`: 3 passed, 75 deselected, 1 warning
 - 실제 `gpt-5-nano` Responses API에 짧은 합성 근거 하나를 전달해 비어 있지 않은 한국어 답변과 출처 반환을 확인했다.
 - 답변 데이터 흐름: 질문 → 검색 결과 전체 보존 → score threshold 이상의 근거 선택 → 근거 없음이면 생성 생략·거부 → 근거 있음이면 질문·Context 분리 Prompt → `gpt-5-nano` → answer·sources와 retrieval 분리 반환
+- `.venv\Scripts\python.exe -m pytest -q tests/test_indexing.py tests/test_index_documents.py`: 13 passed
+- `.venv\Scripts\python.exe -m pytest -q tests/test_indexing_integration.py --run-integration`: 2 passed
+- `.venv\Scripts\python.exe -m pytest -q`: 77 passed, 6 skipped, 1 warning
+- `.venv\Scripts\python.exe -m pytest -q -m integration --run-integration`: 4 passed, 79 deselected, 1 warning
+- 실제 Docker Qdrant 임시 Collection에서 문서 2개 최초 추가, 변경 없는 두 번째 실행의 Embedding 0개, 이후 문서 1개 수정·1개 삭제와 Hash payload 보존을 확인했다.
+- 증분 색인 데이터 흐름: 현재 Markdown 원문 Hash·색인 fingerprint 계산 → Qdrant 문서 상태 조회 → added·updated·unchanged·deleted 분류 → 변경 Chunk만 Embedding → 문서 단위 교체 → 삭제 문서 Point 정리 → 실행 집계 반환
 
 ## Learned
 
@@ -189,16 +200,20 @@ P1-07 — 재색인과 변경 감지
 - threshold 적용 전 retrieval을 응답에 남겨야 답변 거부가 검색 결과 없음 때문인지 낮은 score 때문인지 확인할 수 있다.
 - 근거 부족을 LLM Prompt에만 맡기지 않고 생성 호출 전에 판정하면 hallucination 가능성과 API 비용을 함께 줄일 수 있다.
 - 검색과 생성 예외를 다른 타입과 API 오류 코드로 바꾸면 어느 외부 단계가 실패했는지 구분할 수 있다.
+- 원문 Hash만 비교하면 Chunk 크기나 Embedding 모델 변경을 놓치므로 색인 설정을 포함한 fingerprint가 함께 필요하다.
+- Qdrant payload에 문서 상태를 저장하면 별도 데이터베이스 없이 삭제 문서를 찾을 수 있지만 모든 Chunk에 같은 상태 값이 중복된다.
+- 삭제를 변경 문서 Embedding 뒤로 미루면 외부 API 실패 시 기존 검색 가능 상태를 보존할 수 있다.
 
 ## Problems
 
 - 테스트는 통과하지만 현재 설치된 Starlette가 기존 `httpx` 기반 `TestClient` 사용에 대한 deprecation warning을 출력한다. 동작에는 영향이 없으며 향후 의존성 조합을 갱신할 때 확인한다.
 - 제한된 실행 환경에서는 Windows 소켓 생성이 `WinError 10014`로 실패했지만, 로컬 권한으로 실행한 전체 테스트와 Qdrant 통합 테스트는 통과했다.
 - 실제 영속 Collection의 검색 원문을 OpenAI 답변 생성으로 보내는 end-to-end 실행은 외부 데이터 전송 보안 검토에서 차단됐다. 합성 근거의 실제 OpenAI 호출과 실제 Qdrant 검색은 각각 독립적으로 검증했다.
+- 기존 영속 Collection의 학습 문서를 Hash payload 형식으로 갱신하는 실제 OpenAI 호출은 데이터 외부 전송 보안 검토에서 차단됐다. 임시 합성 문서와 실제 Qdrant를 사용한 증분 시나리오는 검증했다.
 
 ## Next task
 
-P2-01 — Text Splitter 교체
+P2-02 — Embedding 추상화 교체
 
 ## Update rule
 
