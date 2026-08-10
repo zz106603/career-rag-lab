@@ -190,3 +190,20 @@
 - 장점: 내용뿐 아니라 Chunking·Embedding 설정 변경도 재색인 대상으로 감지하며 문서 삭제 상태도 한 곳에서 계산할 수 있다.
 - 단점: 문서의 모든 Point에 같은 상태 값이 중복되고, 기존 Hash 없는 Point는 최초 한 번 전체 갱신해야 한다.
 - 재검토 조건: 여러 색인 버전을 동시에 운영하거나 원자적 상태 전환을 위한 별도 manifest가 필요할 때
+
+---
+
+## D-011. Text Splitter는 재귀 문자 분할기부터 비교한다
+
+- 날짜: 2026-08-10
+- 상태: 확정
+- 관련 Phase: Phase 2
+- 문제: 수동 Chunker를 LangChain으로 교체할 때 어떤 동작 차이가 생기는지 관찰하면서 기존 metadata와 원문 추적성을 유지해야 한다.
+- 선택지:
+  - LangChain 전체 패키지와 Markdown header splitter 도입
+  - `langchain-text-splitters`만 추가하고 `RecursiveCharacterTextSplitter` 비교
+- 결정: 최소 패키지인 `langchain-text-splitters`만 추가하고, 문단·줄·공백·문자 순서의 separator를 사용하는 재귀 문자 분할기를 기존 구조 기반·고정 크기 구현과 비교한다. `start_index`를 원문 위치 metadata로 변환한다.
+- 이유: 이번 단계는 Text Splitter만 교체하는 범위이며, 재귀 분할기는 길이를 제한하면서 자연 경계를 우선하는 동작을 수동 구현과 직접 비교하기 적합하다.
+- 장점: Embedding과 VectorStore를 바꾸지 않고 LangChain의 경계 선택 및 overlap 동작만 분리해 관찰할 수 있으며 source·section·원문 위치를 계속 보존한다.
+- 단점: 설정한 overlap은 separator 선택에 따라 실제 모든 Chunk 경계에 동일하게 적용되지 않으며, section은 원문 시작 위치를 이용해 기존 metadata 규칙으로 보완한다.
+- 재검토 조건: Markdown 제목 metadata를 LangChain 자체 splitter에서 직접 생성하거나 token 기반 길이 제한이 필요할 때

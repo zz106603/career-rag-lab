@@ -45,6 +45,20 @@ python -m pip install -e ".[dev]"
 
 Embedding 설정은 기본적으로 비용이 낮은 `text-embedding-3-small`, 1536차원, batch 크기 100을 사용한다. 실제 OpenAI API를 호출하는 최소 검증은 유료 호출임을 명시하는 다음 옵션으로만 실행된다.
 
+## Chunking 전략 비교
+
+기존 수동 구조 기반·고정 크기 Chunker와 LangChain의
+`RecursiveCharacterTextSplitter`를 같은 Markdown 문서에서 비교한다.
+
+```powershell
+python -m app.compare_chunking data/documents/finance-transfer-system.md `
+    --chunk-size 180 --overlap 20
+```
+
+출력의 `boundaries`는 각 Chunk의 원문 시작·끝 위치이며 `overlaps`는 인접
+Chunk 사이에서 실제로 겹친 문자 수다. LangChain의 overlap 설정은 자연스러운
+separator 경계를 우선하기 때문에 모든 경계에서 요청한 길이가 보장되지는 않는다.
+
 ```powershell
 pytest -m live_api --run-live-api
 ```

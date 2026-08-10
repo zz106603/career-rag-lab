@@ -3,10 +3,12 @@ import re
 from dataclasses import dataclass
 from typing import Literal
 
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+
 from app.documents import Document
 
 
-ChunkingStrategy = Literal["structure", "fixed"]
+ChunkingStrategy = Literal["structure", "fixed", "langchain_recursive"]
 HEADING_PATTERN = re.compile(r"^(#{1,6})\s+(.+?)\s*$", re.MULTILINE)
 
 
@@ -39,10 +41,22 @@ class Chunk:
 
 @dataclass(frozen=True)
 class ChunkingComparison:
-    """같은 문서를 두 전략으로 나눈 결과를 나란히 비교한다."""
+    """같은 문서를 수동 전략과 LangChain 전략으로 나란히 비교한다."""
 
     structure: list[Chunk]
     fixed: list[Chunk]
+    langchain_recursive: list[Chunk]
+
+
+@dataclass(frozen=True)
+class ChunkingStatistics:
+    """전략별 Chunk 개수·길이·경계·실제 overlap을 관찰하는 요약값."""
+
+    chunk_count: int
+    average_length: float
+    lengths: tuple[int, ...]
+    boundaries: tuple[tuple[int, int], ...]
+    overlaps: tuple[int, ...]
 
 
 def chunk_by_structure(document: Document, max_chars: int = 500) -> list[Chunk]:
@@ -97,18 +111,82 @@ def chunk_by_fixed_size(
     return _build_chunks(document, spans, strategy="fixed")
 
 
+def chunk_by_langchain_recursive(
+    document: Document, chunk_size: int = 500, overlap: int = 50
+) -> list[Chunk]:
+    """LangChain의 재귀 문자 분할기로 원문과 metadata를 보존해 나눈다."""
+    _validate_positive_size("chunk_size", chunk_size)
+    if overlap < 0 or overlap >= chunk_size:
+        raise ValueError("overlap must be at least 0 and smaller than chunk_size")
+
+    # LangChain은 앞쪽 separator부터 시도해 문단·줄·공백·문자 순으로
+    # 경계를 찾는다. start_index를 받아 각 결과를 원문 위치로 되돌린다.
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=chunk_size,
+        chunk_overlap=overlap,
+        separators=["\n\n", "\n", " ", ""],
+        keep_separator=True,
+        add_start_index=True,
+        strip_whitespace=False,
+    )
+    split_documents = splitter.create_documents(
+        [document.content],
+        metadatas=[
+            {
+                "source": document.metadata.source,
+                "document_type": document.metadata.document_type,
+                "project_name": document.metadata.project_name,
+            }
+        ],
+    )
+    headings = _find_headings(document.content)
+    spans = [
+        (
+            int(item.metadata["start_index"]),
+            int(item.metadata["start_index"]) + len(item.page_content),
+            _section_at(headings, int(item.metadata["start_index"])),
+        )
+        for item in split_documents
+    ]
+    return _build_chunks(document, spans, strategy="langchain_recursive")
+
+
 def compare_chunking_strategies(
     document: Document,
     structure_max_chars: int = 500,
     fixed_chunk_size: int = 500,
     fixed_overlap: int = 50,
+    langchain_chunk_size: int = 500,
+    langchain_overlap: int = 50,
 ) -> ChunkingComparison:
-    """같은 원문에 두 전략을 적용해 개수·길이·경계를 비교한다."""
+    """같은 원문에 수동 2종과 LangChain 전략을 적용해 비교한다."""
     return ChunkingComparison(
         structure=chunk_by_structure(document, max_chars=structure_max_chars),
         fixed=chunk_by_fixed_size(
             document, chunk_size=fixed_chunk_size, overlap=fixed_overlap
         ),
+        langchain_recursive=chunk_by_langchain_recursive(
+            document, chunk_size=langchain_chunk_size, overlap=langchain_overlap
+        ),
+    )
+
+
+def summarize_chunks(chunks: list[Chunk]) -> ChunkingStatistics:
+    """분할 구현과 무관한 공통 지표로 결과 차이를 수치화한다."""
+    lengths = tuple(len(chunk.content) for chunk in chunks)
+    boundaries = tuple(
+        (chunk.metadata.start_char, chunk.metadata.end_char) for chunk in chunks
+    )
+    overlaps = tuple(
+        max(0, previous.metadata.end_char - current.metadata.start_char)
+        for previous, current in zip(chunks, chunks[1:])
+    )
+    return ChunkingStatistics(
+        chunk_count=len(chunks),
+        average_length=sum(lengths) / len(lengths) if lengths else 0.0,
+        lengths=lengths,
+        boundaries=boundaries,
+        overlaps=overlaps,
     )
 
 
