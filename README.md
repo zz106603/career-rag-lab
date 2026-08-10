@@ -50,6 +50,12 @@ OpenAI SDK를 직접 호출하며, `embed_chunks_with_langchain()`은 LangChain�
 `OpenAIEmbeddings.embed_documents()`를 사용한다. 두 경로 모두 기존 Qdrant
 색인기가 받는 `EmbeddedChunk`를 반환하므로 저장 단계는 바뀌지 않는다.
 
+Qdrant 색인도 비교를 위해 수동 `QdrantIndexer`와 LangChain
+`QdrantVectorStore` 경로를 함께 유지한다. LangChain 경로는 이미 만들어진
+Embedding을 재사용하므로 VectorStore 비교 중 OpenAI API를 다시 호출하지 않는다.
+수동 payload는 metadata가 최상위에 있고, LangChain payload는 `metadata` 객체
+아래에 중첩된다는 차이가 있다.
+
 ## Chunking 전략 비교
 
 기존 수동 구조 기반·고정 크기 Chunker와 LangChain의

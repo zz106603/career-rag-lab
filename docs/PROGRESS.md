@@ -6,30 +6,30 @@ Phase 2 — 수동 RAG 파이프라인을 LangChain으로 단계별 교체
 
 ## Current task
 
-P2-03 — Qdrant VectorStore 교체
+P2-04 — Retriever 교체
 
 ## Goal
 
-- 기존 Qdrant Client 기반 색인과 LangChain Qdrant VectorStore를 비교한다.
-- 저장되는 content, vector, source와 metadata를 같은 Collection 구조에서 관찰한다.
+- 기존 Qdrant 검색 서비스와 LangChain Retriever를 같은 질문에서 비교한다.
+- score, top_k, threshold와 검색 metadata의 관찰 가능성을 유지한다.
 
 ## In scope
 
-- LangChain Qdrant VectorStore 최소 의존성 추가
-- 동일 Chunk와 Embedding에서 수동 색인 방식 비교
-- source, metadata와 Point 식별자 보존
-- 실제 Qdrant 비교 테스트
+- LangChain Retriever 구성
+- 동일 질문 벡터와 Collection에서 수동 검색 결과 비교
+- top_k, score threshold와 metadata 보존
+- 검색 결과를 답변 생성과 분리
 
 ## Out of scope
 
-- Retriever와 PromptTemplate 적용
-- 기존 수동 Qdrant 색인 구현 삭제
+- PromptTemplate 적용
+- 기존 수동 검색 구현 삭제
 
 ## Completion criteria
 
-- 동일 입력을 수동 색인과 LangChain VectorStore에 저장해 비교할 수 있다.
-- 검색에 필요한 content, source와 metadata가 보존된다.
-- 기존 수동 Qdrant 색인과 검색 파이프라인이 계속 실행된다.
+- 같은 질문에서 수동 검색과 LangChain Retriever 결과를 비교할 수 있다.
+- 검색 score와 source 및 metadata를 독립적으로 관찰할 수 있다.
+- 기존 `/search`와 답변 파이프라인이 계속 실행된다.
 
 ## Completed
 
@@ -121,6 +121,13 @@ P2-03 — Qdrant VectorStore 교체
   - LangChain `embed_documents()` 반환값의 개수·차원을 검증하고 기존 `EmbeddedChunk`로 변환한다.
   - 수동 OpenAI SDK 호출 구현과 기존 Qdrant 색인 파이프라인은 그대로 유지했다.
   - 추상화 경계와 단계적 교체 결정을 `docs/DECISIONS.md`의 D-012에 기록했다.
+- P2-03 Qdrant VectorStore 교체
+  - `langchain-qdrant` 최소 의존성과 `QdrantVectorStore` 비교 색인 경로를 추가했다.
+  - 기존 `EmbeddedChunk` 벡터를 재사용하는 Adapter로 VectorStore 비교 시 OpenAI 재호출을 방지했다.
+  - 동일 벡터와 결정적 UUID Point ID, content, source와 Chunk metadata 보존을 비교했다.
+  - LangChain의 중첩 metadata payload에 맞춰 `metadata.document_id`로 stale Chunk를 제거한다.
+  - 기존 수동 `QdrantIndexer`와 검색 파이프라인은 그대로 유지했다.
+  - 기존 Embedding 재사용 결정을 `docs/DECISIONS.md`의 D-013에 기록했다.
 
 ## Verified
 
@@ -187,6 +194,11 @@ P2-03 — Qdrant VectorStore 교체
 - `.venv\Scripts\python.exe -m pytest -q tests/test_embeddings.py tests/test_indexing.py`: 25 passed
 - `.venv\Scripts\python.exe -m pytest -q`: 89 passed, 7 skipped, 1 warning
 - LangChain Embedding 데이터 흐름: `Settings`의 API 키·모델·차원·batch 크기 → `OpenAIEmbeddings` → Chunk content 목록을 `embed_documents()`에 전달 → 반환 개수·차원 검증 → 원본 Chunk와 결합한 기존 `EmbeddedChunk` → 기존 Qdrant 색인기
+- `.venv\Scripts\python.exe -m pytest -q tests/test_langchain_indexing.py tests/test_indexing.py`: 12 passed
+- `.venv\Scripts\python.exe -m pytest -q`: 92 passed, 8 skipped, 1 warning
+- `.venv\Scripts\python.exe -m pytest -q -m integration --run-integration`: 5 passed, 95 deselected, 1 warning
+- 실제 Docker Qdrant의 두 임시 Collection에 수동·LangChain 방식으로 동일 Point 2개를 저장해 UUID, 4차원 vector, content와 source가 일치하고 payload metadata 구조만 다른 것을 확인했다.
+- LangChain VectorStore 데이터 흐름: 기존 `EmbeddedChunk` → 입력·차원 검증 → 기존 Qdrant Collection 설정 검증 → `PrecomputedEmbeddings`로 같은 벡터 재사용 → 결정적 UUID·content·중첩 metadata 구성 → `metadata.document_id` 기존 Point 삭제 → `QdrantVectorStore.add_texts()`
 
 ## Learned
 
@@ -220,6 +232,8 @@ P2-03 — Qdrant VectorStore 교체
 - `start_index`를 사용하면 LangChain 결과도 원문 범위로 검증할 수 있지만 section 같은 프로젝트 metadata는 기존 규칙으로 명시적으로 보완해야 한다.
 - LangChain `OpenAIEmbeddings`는 batch 분할과 OpenAI SDK 호출을 내부로 감추지만, 결과 개수·차원과 원본 Chunk 연결은 애플리케이션 경계에서 계속 검증해야 한다.
 - LangChain 결과를 기존 도메인 모델로 변환하면 다음 추상화를 교체하기 전까지 downstream 코드를 바꾸지 않아도 된다.
+- LangChain QdrantVectorStore는 기본적으로 원문과 metadata를 각각 payload key 아래 저장하므로 수동 평면 payload와 필터 경로가 달라진다.
+- VectorStore만 비교할 때 기존 벡터를 Adapter로 재사용하면 비용뿐 아니라 서로 다른 API 응답이 비교 결과에 섞이는 것도 막을 수 있다.
 
 ## Problems
 
@@ -230,7 +244,7 @@ P2-03 — Qdrant VectorStore 교체
 
 ## Next task
 
-P2-04 — Retriever 교체
+P2-05 — PromptTemplate 적용
 
 ## Update rule
 

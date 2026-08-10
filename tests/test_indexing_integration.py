@@ -6,6 +6,7 @@ from qdrant_client import QdrantClient
 from app.config import Settings
 from app.index_documents import index_documents
 from app.indexing import QdrantIndexer
+from app.langchain_indexing import index_document_with_langchain
 from app.qdrant import create_qdrant_client
 from tests.test_indexing import make_item
 from tests.test_index_documents import make_openai_client
@@ -108,3 +109,47 @@ def test_actual_qdrant_incremental_indexing_scenarios(tmp_path) -> None:
     finally:
         if client.collection_exists(collection_name):
             client.delete_collection(collection_name)
+
+
+@pytest.mark.integration
+def test_actual_qdrant_manual_and_langchain_payloads_are_observable() -> None:
+    client: QdrantClient = create_qdrant_client()
+    suffix = uuid.uuid4().hex
+    manual_collection = f"test_manual_compare_{suffix}"
+    langchain_collection = f"test_langchain_compare_{suffix}"
+    items = [make_item(0), make_item(1)]
+
+    try:
+        manual_result = QdrantIndexer(
+            client, collection_name=manual_collection, vector_size=4
+        ).index_document(items)
+        langchain_result = index_document_with_langchain(
+            items,
+            client=client,
+            collection_name=langchain_collection,
+            vector_size=4,
+        )
+        manual_records = client.retrieve(
+            manual_collection,
+            manual_result.point_ids,
+            with_payload=True,
+            with_vectors=True,
+        )
+        langchain_records = client.retrieve(
+            langchain_collection,
+            langchain_result.point_ids,
+            with_payload=True,
+            with_vectors=True,
+        )
+
+        assert langchain_result.point_ids == manual_result.point_ids
+        assert [record.vector for record in langchain_records] == [
+            record.vector for record in manual_records
+        ]
+        assert langchain_records[0].payload["content"] == "content-0"
+        assert langchain_records[0].payload["metadata"]["source"] == "source.md"
+        assert manual_records[0].payload["source"] == "source.md"
+    finally:
+        for collection_name in (manual_collection, langchain_collection):
+            if client.collection_exists(collection_name):
+                client.delete_collection(collection_name)
