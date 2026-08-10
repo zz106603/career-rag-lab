@@ -1,5 +1,7 @@
 from dataclasses import dataclass
+from typing import Protocol
 
+from langchain_openai import OpenAIEmbeddings
 from openai import OpenAI
 
 from app.chunking import Chunk
@@ -30,12 +32,33 @@ class EmbeddedChunk:
     vector: list[float]
 
 
+class LangChainEmbeddings(Protocol):
+    """테스트 대역과 실제 LangChain Embeddings가 공유하는 최소 인터페이스."""
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]: ...
+
+
 def create_openai_client(settings: Settings | None = None) -> OpenAI:
     """환경변수의 비밀 키로 OpenAI 클라이언트를 만든다."""
     active_settings = settings or get_settings()
     if not active_settings.openai_api_key:
         raise MissingOpenAIAPIKeyError("OPENAI_API_KEY is not configured")
     return OpenAI(api_key=active_settings.openai_api_key)
+
+
+def create_langchain_embeddings(
+    settings: Settings | None = None,
+) -> OpenAIEmbeddings:
+    """기존과 같은 OpenAI 모델·차원·batch 설정으로 LangChain을 구성한다."""
+    active_settings = settings or get_settings()
+    if not active_settings.openai_api_key:
+        raise MissingOpenAIAPIKeyError("OPENAI_API_KEY is not configured")
+    return OpenAIEmbeddings(
+        api_key=active_settings.openai_api_key,
+        model=active_settings.embedding_model,
+        dimensions=active_settings.embedding_dimensions,
+        chunk_size=active_settings.embedding_batch_size,
+    )
 
 
 def embed_chunks(
@@ -78,5 +101,40 @@ def embed_chunks(
                 )
             embedded_chunks.append(EmbeddedChunk(chunk=chunk, vector=vector))
 
+    return embedded_chunks
+
+
+def embed_chunks_with_langchain(
+    chunks: list[Chunk],
+    embeddings: LangChainEmbeddings | None = None,
+    settings: Settings | None = None,
+) -> list[EmbeddedChunk]:
+    """LangChain 결과를 기존 Qdrant 색인 입력인 EmbeddedChunk로 변환한다.
+
+    수동 구현은 batch마다 OpenAI SDK를 직접 호출하지만 LangChain은
+    `chunk_size` 설정에 따라 내부에서 batch를 나눈다. 그 이후의 결과 검증과
+    Chunk 연결은 추상화 뒤에 숨기지 않고 기존 파이프라인 규칙을 유지한다.
+    """
+    if not chunks:
+        raise EmptyEmbeddingInputError("At least one Chunk is required")
+
+    active_settings = settings or get_settings()
+    active_embeddings = embeddings or create_langchain_embeddings(active_settings)
+    vectors = active_embeddings.embed_documents([chunk.content for chunk in chunks])
+    if len(vectors) != len(chunks):
+        raise EmbeddingResponseError(
+            "Embedding response count does not match the input count"
+        )
+
+    embedded_chunks: list[EmbeddedChunk] = []
+    for chunk, vector in zip(chunks, vectors):
+        normalized_vector = list(vector)
+        if len(normalized_vector) != active_settings.embedding_dimensions:
+            raise EmbeddingResponseError(
+                "Embedding vector dimension does not match the configured dimension"
+            )
+        embedded_chunks.append(
+            EmbeddedChunk(chunk=chunk, vector=normalized_vector)
+        )
     return embedded_chunks
 

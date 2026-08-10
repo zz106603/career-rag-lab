@@ -45,6 +45,11 @@ python -m pip install -e ".[dev]"
 
 Embedding 설정은 기본적으로 비용이 낮은 `text-embedding-3-small`, 1536차원, batch 크기 100을 사용한다. 실제 OpenAI API를 호출하는 최소 검증은 유료 호출임을 명시하는 다음 옵션으로만 실행된다.
 
+Embedding 구현은 학습 비교를 위해 두 경로를 함께 유지한다. `embed_chunks()`는
+OpenAI SDK를 직접 호출하며, `embed_chunks_with_langchain()`은 LangChain의
+`OpenAIEmbeddings.embed_documents()`를 사용한다. 두 경로 모두 기존 Qdrant
+색인기가 받는 `EmbeddedChunk`를 반환하므로 저장 단계는 바뀌지 않는다.
+
 ## Chunking 전략 비교
 
 기존 수동 구조 기반·고정 크기 Chunker와 LangChain의

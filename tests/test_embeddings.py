@@ -10,7 +10,9 @@ from app.embeddings import (
     EmptyEmbeddingInputError,
     MissingOpenAIAPIKeyError,
     create_openai_client,
+    create_langchain_embeddings,
     embed_chunks,
+    embed_chunks_with_langchain,
 )
 
 
@@ -129,3 +131,97 @@ def test_settings_repr_does_not_expose_api_key() -> None:
     settings = make_settings(api_key="secret-value")
 
     assert "secret-value" not in repr(settings)
+
+
+def test_langchain_embeddings_use_same_model_dimension_and_batch_settings() -> None:
+    embeddings = create_langchain_embeddings(
+        make_settings(api_key="secret-value", dimensions=4, batch_size=7)
+    )
+
+    assert embeddings.model == "text-embedding-3-small"
+    assert embeddings.dimensions == 4
+    assert embeddings.chunk_size == 7
+    assert "secret-value" not in repr(embeddings)
+
+
+def test_langchain_embedding_preserves_chunk_order_for_existing_indexer() -> None:
+    chunks = [make_chunk(index) for index in range(3)]
+    embeddings = Mock()
+    embeddings.embed_documents.return_value = [
+        [0.0, 0.0, 0.0],
+        [1.0, 1.0, 1.0],
+        [2.0, 2.0, 2.0],
+    ]
+
+    result = embed_chunks_with_langchain(
+        chunks, embeddings=embeddings, settings=make_settings()
+    )
+
+    embeddings.embed_documents.assert_called_once_with(
+        ["chunk-0", "chunk-1", "chunk-2"]
+    )
+    assert [item.chunk for item in result] == chunks
+    assert [item.vector[0] for item in result] == [0.0, 1.0, 2.0]
+
+
+def test_manual_and_langchain_results_have_same_pipeline_shape() -> None:
+    chunks = [make_chunk(index) for index in range(2)]
+    settings = make_settings()
+    manual = embed_chunks(chunks, client=make_client(3), settings=settings)
+    embeddings = Mock()
+    embeddings.embed_documents.return_value = [
+        [0.0, 0.0, 0.0],
+        [1.0, 1.0, 1.0],
+    ]
+
+    langchain = embed_chunks_with_langchain(
+        chunks, embeddings=embeddings, settings=settings
+    )
+
+    assert langchain == manual
+
+
+def test_langchain_embedding_rejects_empty_input_without_calling_provider() -> None:
+    embeddings = Mock()
+
+    with pytest.raises(EmptyEmbeddingInputError):
+        embed_chunks_with_langchain(
+            [], embeddings=embeddings, settings=make_settings()
+        )
+
+    embeddings.embed_documents.assert_not_called()
+
+
+def test_langchain_embedding_rejects_response_count_mismatch() -> None:
+    embeddings = Mock()
+    embeddings.embed_documents.return_value = []
+
+    with pytest.raises(EmbeddingResponseError, match="count"):
+        embed_chunks_with_langchain(
+            [make_chunk(0)], embeddings=embeddings, settings=make_settings()
+        )
+
+
+def test_langchain_embedding_rejects_vector_dimension_mismatch() -> None:
+    embeddings = Mock()
+    embeddings.embed_documents.return_value = [[0.0, 0.0]]
+
+    with pytest.raises(EmbeddingResponseError, match="dimension"):
+        embed_chunks_with_langchain(
+            [make_chunk(0)], embeddings=embeddings, settings=make_settings()
+        )
+
+
+def test_langchain_embedding_propagates_provider_error() -> None:
+    embeddings = Mock()
+    embeddings.embed_documents.side_effect = RuntimeError("API unavailable")
+
+    with pytest.raises(RuntimeError, match="API unavailable"):
+        embed_chunks_with_langchain(
+            [make_chunk(0)], embeddings=embeddings, settings=make_settings()
+        )
+
+
+def test_create_langchain_embeddings_requires_api_key() -> None:
+    with pytest.raises(MissingOpenAIAPIKeyError):
+        create_langchain_embeddings(make_settings(api_key=None))
