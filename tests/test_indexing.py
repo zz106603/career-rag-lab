@@ -95,6 +95,22 @@ def test_index_document_preserves_payload_and_vector(
     }
 
 
+def test_index_document_preserves_hashes_and_lists_document_state(
+    indexer: QdrantIndexer,
+) -> None:
+    indexer.index_document(
+        [make_item(0), make_item(1)],
+        document_hash="content-hash",
+        index_fingerprint="pipeline-hash",
+    )
+
+    states = indexer.list_indexed_documents()
+
+    assert states["document-1"].source == "source.md"
+    assert states["document-1"].document_hash == "content-hash"
+    assert states["document-1"].index_fingerprint == "pipeline-hash"
+
+
 def test_reindex_same_document_does_not_increase_count(
     indexer: QdrantIndexer,
 ) -> None:
