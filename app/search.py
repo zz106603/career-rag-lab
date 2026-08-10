@@ -141,15 +141,25 @@ def _to_search_result(payload: dict[str, Any] | None, score: float) -> SearchRes
     if not isinstance(payload, dict):
         raise SearchPayloadError("Search result payload is missing")
     content = payload.get("content")
+    nested_metadata = payload.get("metadata")
     source = payload.get("source")
+    if source is None and isinstance(nested_metadata, dict):
+        source = nested_metadata.get("source")
     if not isinstance(content, str) or not isinstance(source, str):
         raise SearchPayloadError("Search result requires string content and source")
 
     # content와 source는 자주 쓰는 최상위 필드로 올리고 나머지는 출처 추적용
     # metadata로 그대로 보존한다.
-    metadata = {
-        key: value for key, value in payload.items() if key not in {"content", "source"}
-    }
+    metadata = (
+        dict(nested_metadata)
+        if isinstance(nested_metadata, dict)
+        else {
+            key: value
+            for key, value in payload.items()
+            if key not in {"content", "source"}
+        }
+    )
+    metadata.pop("source", None)
     return SearchResult(
         content=content,
         source=source,

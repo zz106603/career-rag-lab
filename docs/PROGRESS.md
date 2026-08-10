@@ -6,30 +6,30 @@ Phase 2 — 수동 RAG 파이프라인을 LangChain으로 단계별 교체
 
 ## Current task
 
-P2-04 — Retriever 교체
+P2-05 — PromptTemplate 적용
 
 ## Goal
 
-- 기존 Qdrant 검색 서비스와 LangChain Retriever를 같은 질문에서 비교한다.
-- score, top_k, threshold와 검색 metadata의 관찰 가능성을 유지한다.
+- 기존 문자열 조합 Prompt와 LangChain PromptTemplate을 같은 근거에서 비교한다.
+- 질문과 Context 구분, 출처와 근거 부족 규칙을 유지한다.
 
 ## In scope
 
-- LangChain Retriever 구성
-- 동일 질문 벡터와 Collection에서 수동 검색 결과 비교
-- top_k, score threshold와 metadata 보존
-- 검색 결과를 답변 생성과 분리
+- LangChain PromptTemplate 구성
+- 동일 질문·검색 근거에서 기존 Prompt와 결과 비교
+- Context와 source 구성 보존
+- 근거 부족 시 생성 차단 유지
 
 ## Out of scope
 
-- PromptTemplate 적용
-- 기존 수동 검색 구현 삭제
+- 전체 RAG Chain 구성
+- 기존 수동 Prompt 삭제
 
 ## Completion criteria
 
-- 같은 질문에서 수동 검색과 LangChain Retriever 결과를 비교할 수 있다.
-- 검색 score와 source 및 metadata를 독립적으로 관찰할 수 있다.
-- 기존 `/search`와 답변 파이프라인이 계속 실행된다.
+- 같은 질문과 근거에서 수동 Prompt와 LangChain Prompt를 비교할 수 있다.
+- 검색된 content와 source만 Context로 사용한다.
+- 기존 근거 부족 거부와 답변 API가 계속 실행된다.
 
 ## Completed
 
@@ -128,6 +128,13 @@ P2-04 — Retriever 교체
   - LangChain의 중첩 metadata payload에 맞춰 `metadata.document_id`로 stale Chunk를 제거한다.
   - 기존 수동 `QdrantIndexer`와 검색 파이프라인은 그대로 유지했다.
   - 기존 Embedding 재사용 결정을 `docs/DECISIONS.md`의 D-013에 기록했다.
+- P2-04 Retriever 교체
+  - LangChain `BaseRetriever` 기반 `ObservableQdrantRetriever`와 비교 검색 서비스를 추가했다.
+  - 같은 Qdrant Collection과 질문 벡터에서 기존 수동 검색과 content, source, 순서, score가 일치하는지 비교했다.
+  - LangChain 중첩 payload도 기존 `QdrantSearcher`가 읽을 수 있도록 호환 변환을 추가했다.
+  - top_k와 score threshold를 유지하고 근거가 없으면 빈 결과를 반환한다.
+  - 서비스 생성 시 LangChain의 dummy Embedding 검증을 비활성화해 질문 전 불필요한 유료 호출을 방지했다.
+  - score 관찰 가능성 결정을 `docs/DECISIONS.md`의 D-014에 기록했다.
 
 ## Verified
 
@@ -199,6 +206,11 @@ P2-04 — Retriever 교체
 - `.venv\Scripts\python.exe -m pytest -q -m integration --run-integration`: 5 passed, 95 deselected, 1 warning
 - 실제 Docker Qdrant의 두 임시 Collection에 수동·LangChain 방식으로 동일 Point 2개를 저장해 UUID, 4차원 vector, content와 source가 일치하고 payload metadata 구조만 다른 것을 확인했다.
 - LangChain VectorStore 데이터 흐름: 기존 `EmbeddedChunk` → 입력·차원 검증 → 기존 Qdrant Collection 설정 검증 → `PrecomputedEmbeddings`로 같은 벡터 재사용 → 결정적 UUID·content·중첩 metadata 구성 → `metadata.document_id` 기존 Point 삭제 → `QdrantVectorStore.add_texts()`
+- LangChain Retriever 데이터 흐름: 질문 → LangChain Embeddings의 `embed_query()` → Qdrant 유사도 검색 → `(Document, score)` → score를 보존한 Retriever `Document` → content·source·score·metadata가 분리된 기존 `SearchResult`
+- `.venv\Scripts\python.exe -m pytest -q tests/test_langchain_retrieval.py tests/test_search.py`: 13 passed
+- `.venv\Scripts\python.exe -m pytest -q`: 99 passed, 9 skipped, 1 warning
+- `.venv\Scripts\python.exe -m pytest -q -m integration --run-integration`: 6 passed, 102 deselected, 1 warning
+- 실제 Docker Qdrant 임시 Collection에서 같은 질문 벡터로 수동 검색과 LangChain Retriever를 실행해 상위 2개 content, source, 순서와 Cosine score가 일치하는 것을 확인했다.
 
 ## Learned
 
@@ -234,6 +246,8 @@ P2-04 — Retriever 교체
 - LangChain 결과를 기존 도메인 모델로 변환하면 다음 추상화를 교체하기 전까지 downstream 코드를 바꾸지 않아도 된다.
 - LangChain QdrantVectorStore는 기본적으로 원문과 metadata를 각각 payload key 아래 저장하므로 수동 평면 payload와 필터 경로가 달라진다.
 - VectorStore만 비교할 때 기존 벡터를 Adapter로 재사용하면 비용뿐 아니라 서로 다른 API 응답이 비교 결과에 섞이는 것도 막을 수 있다.
+- LangChain의 기본 Retriever 반환값은 문서 중심이므로 검색 품질을 수치로 관찰하려면 VectorStore의 score 결과를 명시적으로 전달해야 한다.
+- QdrantVectorStore의 Collection 검증은 dummy text Embedding을 실행하므로 검색 서비스 생성 시 API 호출을 피하려면 색인 단계 검증과 역할을 분리해야 한다.
 
 ## Problems
 
@@ -244,7 +258,7 @@ P2-04 — Retriever 교체
 
 ## Next task
 
-P2-05 — PromptTemplate 적용
+P2-06 — RAG Chain 구성
 
 ## Update rule
 

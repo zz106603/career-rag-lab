@@ -81,6 +81,33 @@ def test_search_returns_score_order_and_preserves_source_metadata(
     assert results[0].metadata == {"section": "기술", "chunk_id": "chunk-1"}
 
 
+def test_manual_searcher_reads_langchain_nested_metadata() -> None:
+    client = QdrantClient(":memory:")
+    client.create_collection(
+        "documents",
+        vectors_config=models.VectorParams(size=2, distance=models.Distance.COSINE),
+    )
+    client.upsert(
+        "documents",
+        points=[
+            models.PointStruct(
+                id=1,
+                vector=[1.0, 0.0],
+                payload={
+                    "content": "중첩 metadata 문서",
+                    "metadata": {"source": "nested.md", "section": "기술"},
+                },
+            )
+        ],
+        wait=True,
+    )
+
+    result = QdrantSearcher(client, "documents").search([1.0, 0.0])[0]
+
+    assert result.source == "nested.md"
+    assert result.metadata == {"section": "기술"}
+
+
 def test_top_k_and_threshold_change_results(client: QdrantClient) -> None:
     searcher = QdrantSearcher(client, "documents")
 
