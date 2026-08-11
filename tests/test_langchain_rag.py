@@ -11,6 +11,7 @@ from app.answers import (
     RetrievalPipelineError,
 )
 from app.langchain_rag import LangChainRagService
+from app.langchain_retrieval import SearchFilters
 from app.search import SearchResult
 from tests.test_answers import make_settings
 
@@ -56,9 +57,27 @@ def test_chain_preserves_retrieval_filters_evidence_and_generates_answer() -> No
     assert result.sources == ["project.md"]
     assert result.retrieval == [high, low]
     assert result.generated is True
-    retrieval_service.search.assert_called_once_with("장애 대응 경험은?", top_k=2)
+    retrieval_service.search.assert_called_once_with(
+        "장애 대응 경험은?", top_k=2, filters=None
+    )
     assert "장애 대응을 자동화했다." in model.prompts[0]
     assert "관련 없는 내용" not in model.prompts[0]
+
+
+def test_chain_passes_metadata_filters_to_retriever() -> None:
+    retrieval_service = Mock()
+    retrieval_service.search.return_value = []
+    service = LangChainRagService(
+        retrieval_service, RecordingModel().runnable(), make_settings()
+    )
+    filters = SearchFilters(project_name="장애 대응 자동화 도구")
+
+    result = service.answer("장애 대응 경험은?", filters=filters)
+
+    assert result.generated is False
+    retrieval_service.search.assert_called_once_with(
+        "장애 대응 경험은?", top_k=3, filters=filters
+    )
 
 
 def test_chain_skips_generation_when_evidence_is_insufficient() -> None:

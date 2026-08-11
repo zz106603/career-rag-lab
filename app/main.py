@@ -9,9 +9,9 @@ from app.answers import (
     AnswerGenerationError,
     RetrievalPipelineError,
 )
-from app.pipeline import create_default_answer_service, create_default_search_service
 from app.langchain_rag import LangChainRagService
-from app.langchain_retrieval import LangChainRetrievalService
+from app.langchain_retrieval import LangChainRetrievalService, SearchFilters
+from app.pipeline import create_default_answer_service, create_default_search_service
 
 app = FastAPI(title="career-rag-lab")
 
@@ -22,10 +22,20 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+class SearchFilterRequest(BaseModel):
+    document_type: str | None = Field(default=None, min_length=1)
+    project_name: str | None = Field(default=None, min_length=1)
+    source: str | None = Field(default=None, min_length=1)
+
+    def to_domain(self) -> SearchFilters:
+        return SearchFilters(**self.model_dump())
+
+
 class SearchRequest(BaseModel):
     query: str = Field(min_length=1)
     top_k: int = Field(default=5, ge=1, le=100)
     score_threshold: float | None = Field(default=None, ge=-1.0, le=1.0)
+    filters: SearchFilterRequest | None = None
 
 
 class SearchResponse(BaseModel):
@@ -37,6 +47,7 @@ class AnswerRequest(BaseModel):
     query: str = Field(min_length=1)
     top_k: int | None = Field(default=None, ge=1, le=20)
     score_threshold: float | None = Field(default=None, ge=-1.0, le=1.0)
+    filters: SearchFilterRequest | None = None
 
 
 class AnswerResponse(BaseModel):
@@ -91,6 +102,7 @@ def search(
         request.query,
         top_k=request.top_k,
         score_threshold=request.score_threshold,
+        filters=request.filters.to_domain() if request.filters else None,
     )
     return SearchResponse(
         query=request.query,
@@ -108,6 +120,7 @@ def answer(
         request.query,
         top_k=request.top_k,
         score_threshold=request.score_threshold,
+        filters=request.filters.to_domain() if request.filters else None,
     )
     return AnswerResponse(
         status=result.status,
