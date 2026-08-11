@@ -6,31 +6,31 @@ Phase 2 — 수동 RAG 파이프라인을 LangChain으로 단계별 교체
 
 ## Current task
 
-P2-06 — RAG Chain 구성
+P2-07 — 수동·LangChain 파이프라인 평가
 
 ## Goal
 
-- LangChain Retriever, PromptTemplate과 생성 모델을 하나의 Chain으로 연결한다.
-- 수동 파이프라인과 검색 근거·거부·답변 결과를 비교한다.
+- 기존 평가 질문에서 수동·LangChain 검색과 답변 결과를 비교한다.
+- 단계별 교체가 검색 품질·거부·출처 정확도에 미친 영향을 수치로 확인한다.
 
 ## In scope
 
-- LangChain RAG Chain 구성
-- 검색 결과와 생성 답변 분리
-- 근거 부족 시 생성 차단
-- 기존 `/answer` 결과 계약과 비교
+- 평가 질문 전체의 두 파이프라인 실행
+- 검색 출처 적중, 답변 가능·거부 정확도 비교
+- API 호출 수와 차이 사례 기록
+- Phase 2 기본 경로 판단 근거 마련
 
 ## Out of scope
 
-- 기존 수동 RAG 파이프라인 삭제
-- 평가 자동화와 운영 배포
+- 기존 수동 파이프라인 삭제
+- 운영 배포와 사용자 UI
 
 ## Completion criteria
 
-- LangChain 경로로 검색부터 답변 생성까지 실행할 수 있다.
-- 근거 부족이면 생성 모델을 호출하지 않는다.
-- answer, sources, retrieval, generated가 기존처럼 분리된다.
-- 기존 수동 파이프라인이 계속 실행된다.
+- 같은 평가 질문에서 수동·LangChain 결과를 나란히 기록한다.
+- 검색 출처와 답변 거부 차이를 설명할 수 있다.
+- 외부 API 호출 수와 비용 발생 범위를 확인할 수 있다.
+- 다음 기본 파이프라인 선택 근거가 남는다.
 
 ## Completed
 
@@ -143,6 +143,13 @@ P2-06 — RAG Chain 구성
   - 검색 문서 안의 지시 문구가 근거 content 영역에 머무는지 검증했다.
   - Responses API의 안전 지침은 기존 `instructions`에 별도로 유지했다.
   - Prompt 변수 경계를 `docs/DECISIONS.md`의 D-015에 기록했다.
+- P2-06 RAG Chain 구성
+  - LangChain Retriever, PromptTemplate, ChatOpenAI와 문자열 출력 파서를 LCEL로 연결했다.
+  - retrieval 전체를 상태에 보존하고 threshold 통과 evidence만 Prompt Context에 전달한다.
+  - evidence가 없으면 `RunnableBranch`가 생성 모델을 호출하지 않고 기존 거부 결과를 반환한다.
+  - answer, sources, retrieval, generated와 검색·생성 오류 구분을 기존 수동 서비스와 동일하게 유지했다.
+  - `gpt-5-nano`, minimal reasoning, 최대 출력 token과 Responses API 사용 설정을 유지했다.
+  - 생성 전 조건 분기 결정을 `docs/DECISIONS.md`의 D-016에 기록했다.
 
 ## Verified
 
@@ -222,6 +229,9 @@ P2-06 — RAG Chain 구성
 - `.venv\Scripts\python.exe -m pytest -q tests/test_langchain_prompts.py tests/test_answers.py tests/test_answer_api.py`: 14 passed, 1 warning
 - `.venv\Scripts\python.exe -m pytest -q`: 103 passed, 9 skipped, 1 warning
 - PromptTemplate 데이터 흐름: 질문과 threshold 통과 `SearchResult` → content·source·section만 Context 문자열로 직렬화 → `query`·`context` Template 변수 치환 → 기존 수동 Prompt와 동일한 Responses API input 문자열
+- `.venv\Scripts\python.exe -m pytest -q tests/test_langchain_rag.py tests/test_langchain_prompts.py tests/test_answers.py`: 17 passed
+- `.venv\Scripts\python.exe -m pytest -q`: 109 passed, 10 skipped, 1 warning
+- LangChain RAG Chain 데이터 흐름: 질문·top_k·threshold → Retriever 검색 전체 보존 → threshold evidence 선택 → 근거 없음이면 생성 생략·거부 → 근거 있음이면 PromptTemplate → Responses API 기반 `ChatOpenAI` → 문자열 파서 → 기존 `AnswerResult`
 
 ## Learned
 
@@ -261,6 +271,8 @@ P2-06 — RAG Chain 구성
 - QdrantVectorStore의 Collection 검증은 dummy text Embedding을 실행하므로 검색 서비스 생성 시 API 호출을 피하려면 색인 단계 검증과 역할을 분리해야 한다.
 - PromptTemplate은 문자열 조합을 구조화하지만 어떤 검색 metadata를 Context에 포함할지는 애플리케이션이 계속 명시적으로 결정해야 한다.
 - 검색 문서 content와 모델 지침을 다른 API 입력 영역으로 유지하면 문서 안의 문장을 상위 지침으로 취급하지 않는 경계를 보존할 수 있다.
+- LCEL Chain도 조건 분기를 명시하지 않으면 검색 결과가 비어 있어도 생성 모델을 호출할 수 있으므로 비용·거부 정책은 애플리케이션 상태 전환으로 유지해야 한다.
+- 수동 서비스와 LangChain Chain이 같은 `AnswerResult`를 반환하게 하면 API를 바꾸지 않고 내부 파이프라인만 평가할 수 있다.
 
 ## Problems
 
@@ -271,7 +283,7 @@ P2-06 — RAG Chain 구성
 
 ## Next task
 
-P2-07 — 수동·LangChain 파이프라인 평가
+P2-08 — Phase 2 기본 경로 결정
 
 ## Update rule
 

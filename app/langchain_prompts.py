@@ -12,11 +12,11 @@ def build_langchain_answer_prompt(
     query: str, evidence: list[SearchResult]
 ) -> str:
     """질문과 검색 Context를 LangChain 변수로 분리해 Prompt를 구성한다."""
-    context = _format_context(evidence)
+    context = format_evidence_context(evidence)
     return ANSWER_PROMPT_TEMPLATE.format(query=query, context=context)
 
 
-def _format_context(evidence: list[SearchResult]) -> str:
+def format_evidence_context(evidence: list[SearchResult]) -> str:
     """검색에 실제로 포함된 원문·출처·section만 모델 Context로 전달한다."""
     parts = []
     for index, item in enumerate(evidence, start=1):
