@@ -7,11 +7,11 @@ from pydantic import BaseModel, Field
 
 from app.answers import (
     AnswerGenerationError,
-    AnswerService,
     RetrievalPipelineError,
-    create_answer_service,
 )
-from app.search import SearchService, create_search_service
+from app.pipeline import create_default_answer_service, create_default_search_service
+from app.langchain_rag import LangChainRagService
+from app.langchain_retrieval import LangChainRetrievalService
 
 app = FastAPI(title="career-rag-lab")
 
@@ -47,12 +47,12 @@ class AnswerResponse(BaseModel):
     generated: bool
 
 
-def get_search_service() -> SearchService:
-    return create_search_service()
+def get_search_service() -> LangChainRetrievalService:
+    return create_default_search_service()
 
 
-def get_answer_service() -> AnswerService:
-    return create_answer_service()
+def get_answer_service() -> LangChainRagService:
+    return create_default_answer_service()
 
 
 @app.exception_handler(RetrievalPipelineError)
@@ -84,7 +84,7 @@ def handle_generation_failure(
 @app.post("/search", response_model=SearchResponse)
 def search(
     request: SearchRequest,
-    service: Annotated[SearchService, Depends(get_search_service)],
+    service: Annotated[LangChainRetrievalService, Depends(get_search_service)],
 ) -> SearchResponse:
     """LLM 호출 없이 검색된 근거와 score를 그대로 반환한다."""
     results = service.search(
@@ -101,7 +101,7 @@ def search(
 @app.post("/answer", response_model=AnswerResponse)
 def answer(
     request: AnswerRequest,
-    service: Annotated[AnswerService, Depends(get_answer_service)],
+    service: Annotated[LangChainRagService, Depends(get_answer_service)],
 ) -> AnswerResponse:
     """검색 근거가 있을 때만 답변을 생성하고 retrieval을 함께 반환한다."""
     result = service.answer(

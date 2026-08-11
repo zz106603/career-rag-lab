@@ -6,7 +6,13 @@ from langchain_qdrant import QdrantVectorStore
 from qdrant_client import QdrantClient, models
 
 from app.embeddings import EmbeddedChunk
-from app.indexing import IndexResult, InvalidIndexInputError, QdrantIndexer
+from app.indexing import (
+    IndexResult,
+    IndexedDocumentState,
+    IndexingError,
+    InvalidIndexInputError,
+    QdrantIndexer,
+)
 
 
 class PrecomputedEmbeddings(Embeddings):
@@ -37,6 +43,8 @@ def index_document_with_langchain(
     client: QdrantClient,
     collection_name: str,
     vector_size: int,
+    document_hash: str | None = None,
+    index_fingerprint: str | None = None,
 ) -> IndexResult:
     """기존 EmbeddedChunk를 LangChain QdrantVectorStore로 문서 단위 저장한다."""
     document_id = _validate_items(items, vector_size)
@@ -49,7 +57,14 @@ def index_document_with_langchain(
         str(uuid.uuid5(uuid.NAMESPACE_URL, item.chunk.metadata.chunk_id))
         for item in items
     ]
-    metadatas = [_to_metadata(item) for item in items]
+    metadatas = [
+        _to_metadata(
+            item,
+            document_hash=document_hash,
+            index_fingerprint=index_fingerprint,
+        )
+        for item in items
+    ]
     vector_store = QdrantVectorStore(
         client=client,
         collection_name=collection_name,
@@ -104,9 +119,99 @@ def _validate_items(items: Sequence[EmbeddedChunk], vector_size: int) -> str:
     return next(iter(document_ids))
 
 
-def _to_metadata(item: EmbeddedChunk) -> dict[str, object]:
+class LangChainQdrantIndexer:
+    """증분 상태를 보존하면서 LangChain payload로 문서를 관리한다."""
+
+    def __init__(self, client: QdrantClient, collection_name: str, vector_size: int):
+        self.client = client
+        self.collection_name = collection_name
+        self.vector_size = vector_size
+        self._collection = QdrantIndexer(client, collection_name, vector_size)
+
+    def ensure_collection(self) -> bool:
+        return self._collection.ensure_collection()
+
+    def index_document(
+        self,
+        items: list[EmbeddedChunk],
+        *,
+        document_hash: str | None = None,
+        index_fingerprint: str | None = None,
+    ) -> IndexResult:
+        return index_document_with_langchain(
+            items,
+            client=self.client,
+            collection_name=self.collection_name,
+            vector_size=self.vector_size,
+            document_hash=document_hash,
+            index_fingerprint=index_fingerprint,
+        )
+
+    def delete_document(self, document_id: str) -> None:
+        self.client.delete(
+            collection_name=self.collection_name,
+            points_selector=models.FilterSelector(
+                filter=models.Filter(
+                    must=[
+                        models.FieldCondition(
+                            key="metadata.document_id",
+                            match=models.MatchValue(value=document_id),
+                        )
+                    ]
+                )
+            ),
+            wait=True,
+        )
+
+    def list_indexed_documents(self) -> dict[str, IndexedDocumentState]:
+        if not self.client.collection_exists(self.collection_name):
+            return {}
+        states: dict[str, IndexedDocumentState] = {}
+        offset = None
+        while True:
+            records, offset = self.client.scroll(
+                self.collection_name,
+                limit=256,
+                offset=offset,
+                with_payload=True,
+                with_vectors=False,
+            )
+            for record in records:
+                metadata = (record.payload or {}).get("metadata")
+                if not isinstance(metadata, dict):
+                    raise IndexingError("LangChain Point requires metadata payload")
+                document_id = metadata.get("document_id")
+                source = metadata.get("source")
+                if not isinstance(document_id, str) or not isinstance(source, str):
+                    raise IndexingError(
+                        "Indexed Point requires string document_id and source"
+                    )
+                state = IndexedDocumentState(
+                    document_id=document_id,
+                    source=source,
+                    document_hash=_optional_string(metadata.get("document_hash")),
+                    index_fingerprint=_optional_string(
+                        metadata.get("index_fingerprint")
+                    ),
+                )
+                previous = states.get(document_id)
+                if previous is not None and previous != state:
+                    raise IndexingError(
+                        f"Indexed document state is inconsistent: {document_id}"
+                    )
+                states[document_id] = state
+            if offset is None:
+                return states
+
+
+def _to_metadata(
+    item: EmbeddedChunk,
+    *,
+    document_hash: str | None = None,
+    index_fingerprint: str | None = None,
+) -> dict[str, object]:
     metadata = item.chunk.metadata
-    return {
+    result: dict[str, object] = {
         "document_id": metadata.document_id,
         "chunk_id": metadata.chunk_id,
         "source": metadata.source,
@@ -118,3 +223,16 @@ def _to_metadata(item: EmbeddedChunk) -> dict[str, object]:
         "start_char": metadata.start_char,
         "end_char": metadata.end_char,
     }
+    if document_hash is not None:
+        result["document_hash"] = document_hash
+    if index_fingerprint is not None:
+        result["index_fingerprint"] = index_fingerprint
+    return result
+
+
+def _optional_string(value: object) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise IndexingError("Indexed document hashes must be strings")
+    return value

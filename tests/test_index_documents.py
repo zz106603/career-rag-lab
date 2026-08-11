@@ -142,7 +142,9 @@ def test_deleted_document_points_are_removed_without_embedding(tmp_path) -> None
     assert summary.deleted_count == 1
     assert summary.embedded_chunk_count == 0
     assert openai_client.embeddings.create.call_count == 1
-    assert {record.payload["source"] for record in records} == {"first.md"}
+    assert {record.payload["metadata"]["source"] for record in records} == {
+        "first.md"
+    }
 
 
 def test_embedding_failure_does_not_delete_missing_document(tmp_path) -> None:
@@ -175,7 +177,7 @@ def test_embedding_failure_does_not_delete_missing_document(tmp_path) -> None:
     records, _ = qdrant_client.scroll(
         settings.qdrant_collection, limit=100, with_payload=True
     )
-    assert {record.payload["source"] for record in records} == {
+    assert {record.payload["metadata"]["source"] for record in records} == {
         "first.md",
         "second.md",
     }

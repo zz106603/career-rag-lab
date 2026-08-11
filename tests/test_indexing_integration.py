@@ -102,10 +102,12 @@ def test_actual_qdrant_incremental_indexing_scenarios(tmp_path) -> None:
         assert changed.deleted_count == 1
         assert changed.embedded_chunk_count == 1
         assert openai_client.embeddings.create.call_count == 2
-        assert {record.payload["source"] for record in records} == {"first.md"}
+        assert {record.payload["metadata"]["source"] for record in records} == {
+            "first.md"
+        }
         assert "실제 Qdrant 수정 내용" in records[0].payload["content"]
-        assert records[0].payload["document_hash"]
-        assert records[0].payload["index_fingerprint"]
+        assert records[0].payload["metadata"]["document_hash"]
+        assert records[0].payload["metadata"]["index_fingerprint"]
     finally:
         if client.collection_exists(collection_name):
             client.delete_collection(collection_name)
