@@ -6,28 +6,27 @@ Phase 3 — 검색 품질 개선과 평가
 
 ## Current task
 
-P3-01 — 기준선 평가
+P3-02 — Metadata Filter
 
 ## Goal
 
-- Dense Vector Search의 현재 품질을 기준선으로 기록한다.
-- 질문별 검색 실패 유형을 이후 개선 작업의 입력으로 분류한다.
+- 문서 metadata 조건으로 검색 범위를 제한한다.
+- 조건 검색이 관련 없는 문서를 줄이는지 기준선과 비교한다.
 
 ## In scope
 
-- Hit@K와 MRR
-- Answerability accuracy와 Source accuracy
-- 기대 출처 최초 순위와 잘못 검색된 문서 기록
+- 문서 유형, 프로젝트 등 기존 metadata filter
+- filter 적용 전후 검색 결과 비교
 
 ## Out of scope
 
-- Metadata Filter, Hybrid Search, reranking 구현
+- Hybrid Search와 reranking
 
 ## Completion criteria
 
-- 평가 질문별 기준선 결과가 기록된다.
-- 최소 네 가지 지표를 계산할 수 있다.
-- 검색 실패 사례를 설명할 수 있다.
+- Retriever에 metadata 조건을 전달할 수 있다.
+- 조건에 맞지 않는 문서가 검색 결과에서 제외된다.
+- 기존 무조건 검색 동작은 유지된다.
 
 ## Completed
 
@@ -161,6 +160,12 @@ P3-01 — 기준선 평가
   - API의 기본 검색을 LangChain Retriever로, 기본 답변을 LangChain RAG Chain으로 전환했다.
   - 수동 구현은 삭제하지 않고 이후 회귀 비교에 보존했다.
   - 전환 이유와 유지 범위를 `docs/DECISIONS.md`의 D-018에 기록했다.
+- P3-01 기준선 평가
+  - 답변 가능 질문의 Hit@3, MRR과 전체 질문의 Answerability·Source accuracy를 분리해 계산했다.
+  - 질문별 기대 출처 최초 순위와 관련 없는 검색 출처를 `data/evaluation/baseline.json`에 기록했다.
+  - P2에서 실제 실행한 LangChain 결과를 재사용해 추가 OpenAI 호출과 문서 외부 전송 없이 기준선을 생성했다.
+  - Hit@3 1.000, MRR 1.000, Answerability accuracy 0.867, Source accuracy 0.400을 확인했다.
+  - 검색 지표의 평가 대상을 `docs/DECISIONS.md`의 D-019에 기록했다.
 
 ## Verified
 
@@ -251,6 +256,10 @@ P3-01 — 기준선 평가
 - `.venv\Scripts\python.exe -m pytest -q -m integration --run-integration`: 6 passed, 121 deselected, 1 warning
 - 전체 테스트는 코드 검증 115개가 통과했고 Windows `WinError 10014`로 FastAPI 테스트 2개가 일시 실패했으며, 해당 API 테스트만 재실행해 3 passed를 확인했다.
 - 기본 API 데이터 흐름: Markdown 변경 → LangChain payload 증분 색인 → `/search`의 LangChain Retriever → `/answer`의 LCEL 근거 분기·생성
+- `.venv\Scripts\python.exe -m app.evaluate_baseline`: Hit@3=1.000, MRR=1.000, Answerability=0.867, Source=0.400
+- `.venv\Scripts\python.exe -m pytest -q tests/test_evaluation.py`: 7 passed
+- `.venv\Scripts\python.exe -m pytest -q`: 119 passed, 10 skipped, 1 warning
+- 기준선 데이터 흐름: P2 실제 LangChain 평가 결과 → 질문별 기대 출처와 검색 순위 비교 → Hit@3·MRR → 생성·거절 및 답변 출처 비교 → JSON 기준선
 
 ## Learned
 
@@ -295,6 +304,8 @@ P3-01 — 기준선 평가
 - 동일 벡터와 평가 조건에서 두 경로의 결과가 같았으므로 현재 품질 차이는 프레임워크보다 `top_k`와 threshold 설정의 영향을 더 크게 받는다.
 - 단일 기대 출처 질문도 threshold를 통과한 관련 없는 Chunk가 함께 답변 근거가 되면 출처 정확도가 낮아지므로 검색 적중과 답변 출처 정확도를 별도 지표로 봐야 한다.
 - LangChain을 기본 경로로 전환하려면 Chain만 바꾸는 것이 아니라 증분 색인의 상태 조회·삭제 filter도 중첩 metadata 경로에 맞춰야 한다.
+- Hit@K는 기대 출처 중 하나만 찾아도 성공하므로 다중 문서 질문의 전체 출처 누락을 드러내지 못하며 source recall을 함께 봐야 한다.
+- MRR 1.0은 정답 문서가 항상 첫 번째라는 뜻이지만 뒤 순위에 관련 없는 문서가 섞이지 않았다는 뜻은 아니다.
 
 ## Problems
 
@@ -302,10 +313,11 @@ P3-01 — 기준선 평가
 - 제한된 실행 환경에서는 Windows 소켓 생성이 `WinError 10014`로 실패했지만, 로컬 권한으로 실행한 전체 테스트와 Qdrant 통합 테스트는 통과했다.
 - 실제 영속 Collection의 검색 원문을 OpenAI 답변 생성으로 보내는 end-to-end 실행은 외부 데이터 전송 보안 검토에서 차단됐다. 합성 근거의 실제 OpenAI 호출과 실제 Qdrant 검색은 각각 독립적으로 검증했다.
 - 기존 영속 Collection의 학습 문서를 Hash payload 형식으로 갱신하는 실제 OpenAI 호출은 데이터 외부 전송 보안 검토에서 차단됐다. 임시 합성 문서와 실제 Qdrant를 사용한 증분 시나리오는 검증했다.
+- P3 기준선의 실제 API 재실행은 검색 문서 외부 전송 승인이 없어 중단했고, 이미 저장된 P2 실제 실행 결과를 비용 없이 재계산했다.
 
 ## Next task
 
-P3-01 — 기준선 평가
+P3-02 — Metadata Filter
 
 ## Update rule
 

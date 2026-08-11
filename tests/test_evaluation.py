@@ -9,6 +9,7 @@ from app.evaluation import (
     report_to_dict,
 )
 from app.evaluate_pipelines import clone_as_langchain_collection
+from app.evaluate_baseline import RecordedPipeline
 from app.search import SearchResult
 from qdrant_client import QdrantClient, models
 
@@ -55,11 +56,15 @@ def test_compare_pipelines_records_side_by_side_metrics_and_api_scope() -> None:
     report = compare_pipelines(QUESTIONS, correct, wrong, top_k=3)
 
     assert report.manual.mean_source_recall == 1.0
+    assert report.manual.hit_at_k == 1.0
+    assert report.manual.mean_reciprocal_rank == 1.0
     assert report.manual.refusal_accuracy == 1.0
     assert report.manual.answer_source_accuracy == 1.0
     assert report.manual.embedding_calls == 2
     assert report.manual.generation_calls == 1
     assert report.langchain.mean_source_recall == 0.5
+    assert report.langchain.hit_at_k == 0.0
+    assert report.langchain.mean_reciprocal_rank == 0.0
     assert report.langchain.refusal_accuracy == 0.5
     assert report.langchain.answer_source_accuracy == 0.0
     assert correct.calls == [("경험?", 3), ("없는 사실?", 3)]
@@ -73,6 +78,9 @@ def test_source_recall_requires_all_expected_documents() -> None:
     report = compare_pipelines([question], pipeline, pipeline)
 
     assert report.manual.cases[0].source_recall == 0.5
+    assert report.manual.cases[0].hit_at_k is True
+    assert report.manual.cases[0].first_relevant_rank == 1
+    assert report.manual.cases[0].reciprocal_rank == 1.0
     assert report.manual.cases[0].answer_sources_correct is False
 
 
@@ -92,6 +100,46 @@ def test_report_is_json_compatible_shape() -> None:
 
     assert data["manual"]["cases"][0]["question_id"] == "q1"
     assert data["langchain"]["embedding_calls"] == 2
+
+
+def test_rank_and_unexpected_sources_are_recorded() -> None:
+    result = AnswerResult(
+        status="answered",
+        answer="답변",
+        sources=["a.md"],
+        retrieval=[
+            SearchResult("오검색", "wrong.md", 0.9, {}),
+            SearchResult("정답", "a.md", 0.8, {}),
+        ],
+        generated=True,
+    )
+    pipeline = StubPipeline({"경험?": result})
+
+    report = compare_pipelines([QUESTIONS[0]], pipeline, pipeline)
+    case = report.manual.cases[0]
+
+    assert case.first_relevant_rank == 2
+    assert case.reciprocal_rank == 0.5
+    assert case.unexpected_sources == ("wrong.md",)
+
+
+def test_recorded_pipeline_reuses_actual_case_without_api_call() -> None:
+    pipeline = RecordedPipeline(
+        [
+            {
+                "question_id": "q1",
+                "retrieval_sources": ["a.md", "wrong.md"],
+                "answer_sources": ["a.md"],
+                "generated": True,
+            }
+        ]
+    ).bind_questions([QUESTIONS[0]])
+
+    result = pipeline.answer("경험?", top_k=1)
+
+    assert result.generated is True
+    assert result.sources == ["a.md"]
+    assert [item.source for item in result.retrieval] == ["a.md"]
 
 
 def test_clone_reuses_vectors_and_nests_langchain_metadata() -> None:
