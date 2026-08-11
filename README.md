@@ -67,6 +67,11 @@ Retriever는 Qdrant의 `(Document, score)` 결과를 받아 score를 명시적�
 section만 포함한다. 생성 안전 지침은 기존 Responses API의 `instructions`에
 별도로 유지한다.
 
+`LangChainRagService`는 Retriever → 근거 threshold 판정 → PromptTemplate →
+`ChatOpenAI` → 문자열 파서를 LCEL로 연결한다. 조건 분기에서 근거가 없으면
+모델 Chain으로 진입하지 않고 기존 거부 응답을 반환하며, 근거가 있으면 기존과
+동일한 `answer`, `sources`, `retrieval`, `generated` 구조를 만든다.
+
 ## Chunking 전략 비교
 
 기존 수동 구조 기반·고정 크기 Chunker와 LangChain의

@@ -275,3 +275,20 @@
 - 장점: 같은 입력에서 수동 Prompt와 완전히 동일한 문자열을 비교할 수 있고 score·내부 metadata가 모델 Context에 불필요하게 포함되지 않는다.
 - 단점: Context 직렬화 로직이 수동·LangChain 경로에 일시적으로 중복되며 실제 생성 호출 연결은 다음 Chain 구성 단계에 남는다.
 - 재검토 조건: LangChain RAG Chain이 기본 경로가 되어 메시지 기반 ChatPromptTemplate 또는 구조화 Context가 필요할 때
+
+---
+
+## D-016. 근거 판정은 생성 모델 앞의 Chain 분기로 유지한다
+
+- 날짜: 2026-08-11
+- 상태: 확정
+- 관련 Phase: Phase 2
+- 문제: Retriever, PromptTemplate과 생성 모델을 Chain으로 연결하면서도 근거 부족 시 생성 비용과 hallucination을 차단해야 한다.
+- 선택지:
+  - 모든 검색 결과를 모델에 보내고 Prompt로 거부를 요청
+  - 검색 결과를 보존한 뒤 LCEL `RunnableBranch`에서 threshold 근거 유무를 판정
+- 결정: retrieval 전체를 상태에 보존하고 threshold를 통과한 evidence가 없으면 거부 `AnswerResult`를 반환한다. evidence가 있을 때만 `PromptTemplate | ChatOpenAI | StrOutputParser`를 실행한다.
+- 이유: 수동 파이프라인에서 검증한 생성 전 근거 판정과 API 비용 절감 규칙을 LangChain 추상화에서도 유지해야 한다.
+- 장점: 모델을 호출하지 않은 거부와 생성된 답변을 `generated`로 구분하고 기존 API 결과 계약을 그대로 비교할 수 있다.
+- 단점: 단순한 직선형 Chain보다 상태 변환과 조건 분기 코드가 추가되며 검색·생성 오류를 별도로 변환해야 한다.
+- 재검토 조건: 평가 결과에 따라 threshold 판정을 reranker나 구조화된 정책 Chain으로 교체할 때
