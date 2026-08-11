@@ -1,0 +1,335 @@
+{
+  "evaluation_mode": "recorded_actual_run",
+  "top_k": 3,
+  "cases": [
+    {
+      "question_id": "q01",
+      "category": "semantic",
+      "retrieval_sources": [
+        "precision-medical-platform.md",
+        "finance-transfer-system.md"
+      ],
+      "answer_sources": [
+        "precision-medical-platform.md",
+        "finance-transfer-system.md"
+      ],
+      "hit_at_k": true,
+      "first_relevant_rank": 1,
+      "reciprocal_rank": 1.0,
+      "unexpected_sources": [
+        "finance-transfer-system.md"
+      ],
+      "source_recall": 1.0,
+      "refusal_correct": true,
+      "answer_sources_correct": false,
+      "generated": true
+    },
+    {
+      "question_id": "q02",
+      "category": "semantic",
+      "retrieval_sources": [
+        "finance-transfer-system.md",
+        "backend-skills.md"
+      ],
+      "answer_sources": [
+        "finance-transfer-system.md",
+        "backend-skills.md"
+      ],
+      "hit_at_k": true,
+      "first_relevant_rank": 1,
+      "reciprocal_rank": 1.0,
+      "unexpected_sources": [
+        "backend-skills.md"
+      ],
+      "source_recall": 1.0,
+      "refusal_correct": true,
+      "answer_sources_correct": false,
+      "generated": true
+    },
+    {
+      "question_id": "q03",
+      "category": "semantic",
+      "retrieval_sources": [
+        "incident-response-tool.md",
+        "finance-transfer-system.md"
+      ],
+      "answer_sources": [
+        "incident-response-tool.md",
+        "finance-transfer-system.md"
+      ],
+      "hit_at_k": true,
+      "first_relevant_rank": 1,
+      "reciprocal_rank": 1.0,
+      "unexpected_sources": [
+        "finance-transfer-system.md"
+      ],
+      "source_recall": 1.0,
+      "refusal_correct": true,
+      "answer_sources_correct": false,
+      "generated": true
+    },
+    {
+      "question_id": "q04",
+      "category": "exact_keyword",
+      "retrieval_sources": [
+        "finance-transfer-system.md",
+        "experience-boundaries.md",
+        "backend-skills.md"
+      ],
+      "answer_sources": [
+        "finance-transfer-system.md",
+        "experience-boundaries.md",
+        "backend-skills.md"
+      ],
+      "hit_at_k": true,
+      "first_relevant_rank": 1,
+      "reciprocal_rank": 1.0,
+      "unexpected_sources": [
+        "experience-boundaries.md",
+        "backend-skills.md"
+      ],
+      "source_recall": 1.0,
+      "refusal_correct": true,
+      "answer_sources_correct": false,
+      "generated": true
+    },
+    {
+      "question_id": "q05",
+      "category": "exact_keyword",
+      "retrieval_sources": [
+        "social-analytics-dashboard.md",
+        "experience-boundaries.md",
+        "finance-transfer-system.md"
+      ],
+      "answer_sources": [],
+      "hit_at_k": true,
+      "first_relevant_rank": 1,
+      "reciprocal_rank": 1.0,
+      "unexpected_sources": [
+        "experience-boundaries.md",
+        "finance-transfer-system.md"
+      ],
+      "source_recall": 1.0,
+      "refusal_correct": false,
+      "answer_sources_correct": false,
+      "generated": false
+    },
+    {
+      "question_id": "q06",
+      "category": "exact_keyword",
+      "retrieval_sources": [
+        "precision-medical-platform.md",
+        "experience-boundaries.md",
+        "incident-response-tool.md"
+      ],
+      "answer_sources": [],
+      "hit_at_k": true,
+      "first_relevant_rank": 1,
+      "reciprocal_rank": 1.0,
+      "unexpected_sources": [
+        "experience-boundaries.md",
+        "incident-response-tool.md"
+      ],
+      "source_recall": 1.0,
+      "refusal_correct": false,
+      "answer_sources_correct": false,
+      "generated": false
+    },
+    {
+      "question_id": "q07",
+      "category": "conditional",
+      "retrieval_sources": [
+        "precision-medical-platform.md"
+      ],
+      "answer_sources": [
+        "precision-medical-platform.md"
+      ],
+      "hit_at_k": true,
+      "first_relevant_rank": 1,
+      "reciprocal_rank": 1.0,
+      "unexpected_sources": [],
+      "source_recall": 1.0,
+      "refusal_correct": true,
+      "answer_sources_correct": true,
+      "generated": true
+    },
+    {
+      "question_id": "q08",
+      "category": "conditional",
+      "retrieval_sources": [
+        "finance-transfer-system.md",
+        "precision-medical-platform.md"
+      ],
+      "answer_sources": [
+        "finance-transfer-system.md",
+        "precision-medical-platform.md"
+      ],
+      "hit_at_k": true,
+      "first_relevant_rank": 1,
+      "reciprocal_rank": 1.0,
+      "unexpected_sources": [
+        "precision-medical-platform.md"
+      ],
+      "source_recall": 1.0,
+      "refusal_correct": true,
+      "answer_sources_correct": false,
+      "generated": true
+    },
+    {
+      "question_id": "q09",
+      "category": "conditional",
+      "retrieval_sources": [
+        "social-analytics-dashboard.md"
+      ],
+      "answer_sources": [
+        "social-analytics-dashboard.md"
+      ],
+      "hit_at_k": true,
+      "first_relevant_rank": 1,
+      "reciprocal_rank": 1.0,
+      "unexpected_sources": [],
+      "source_recall": 1.0,
+      "refusal_correct": true,
+      "answer_sources_correct": true,
+      "generated": true
+    },
+    {
+      "question_id": "q10",
+      "category": "multi_document",
+      "retrieval_sources": [
+        "precision-medical-platform.md",
+        "experience-boundaries.md",
+        "social-analytics-dashboard.md"
+      ],
+      "answer_sources": [
+        "precision-medical-platform.md",
+        "experience-boundaries.md",
+        "social-analytics-dashboard.md"
+      ],
+      "hit_at_k": true,
+      "first_relevant_rank": 1,
+      "reciprocal_rank": 1.0,
+      "unexpected_sources": [
+        "experience-boundaries.md"
+      ],
+      "source_recall": 0.6666666666666666,
+      "refusal_correct": true,
+      "answer_sources_correct": false,
+      "generated": true
+    },
+    {
+      "question_id": "q11",
+      "category": "multi_document",
+      "retrieval_sources": [
+        "backend-skills.md",
+        "experience-boundaries.md",
+        "incident-response-tool.md"
+      ],
+      "answer_sources": [
+        "backend-skills.md"
+      ],
+      "hit_at_k": true,
+      "first_relevant_rank": 1,
+      "reciprocal_rank": 1.0,
+      "unexpected_sources": [
+        "experience-boundaries.md",
+        "incident-response-tool.md"
+      ],
+      "source_recall": 0.3333333333333333,
+      "refusal_correct": true,
+      "answer_sources_correct": false,
+      "generated": true
+    },
+    {
+      "question_id": "q12",
+      "category": "multi_document",
+      "retrieval_sources": [
+        "backend-skills.md",
+        "incident-response-tool.md"
+      ],
+      "answer_sources": [
+        "backend-skills.md",
+        "incident-response-tool.md"
+      ],
+      "hit_at_k": true,
+      "first_relevant_rank": 1,
+      "reciprocal_rank": 1.0,
+      "unexpected_sources": [],
+      "source_recall": 1.0,
+      "refusal_correct": true,
+      "answer_sources_correct": true,
+      "generated": true
+    },
+    {
+      "question_id": "q13",
+      "category": "unanswerable",
+      "retrieval_sources": [
+        "incident-response-tool.md",
+        "finance-transfer-system.md",
+        "precision-medical-platform.md"
+      ],
+      "answer_sources": [],
+      "hit_at_k": null,
+      "first_relevant_rank": null,
+      "reciprocal_rank": null,
+      "unexpected_sources": [
+        "incident-response-tool.md",
+        "finance-transfer-system.md",
+        "precision-medical-platform.md"
+      ],
+      "source_recall": 1.0,
+      "refusal_correct": true,
+      "answer_sources_correct": true,
+      "generated": false
+    },
+    {
+      "question_id": "q14",
+      "category": "unanswerable",
+      "retrieval_sources": [
+        "finance-transfer-system.md",
+        "backend-skills.md",
+        "experience-boundaries.md"
+      ],
+      "answer_sources": [],
+      "hit_at_k": null,
+      "first_relevant_rank": null,
+      "reciprocal_rank": null,
+      "unexpected_sources": [
+        "finance-transfer-system.md",
+        "backend-skills.md",
+        "experience-boundaries.md"
+      ],
+      "source_recall": 1.0,
+      "refusal_correct": true,
+      "answer_sources_correct": true,
+      "generated": false
+    },
+    {
+      "question_id": "q15",
+      "category": "unanswerable",
+      "retrieval_sources": [
+        "precision-medical-platform.md",
+        "incident-response-tool.md"
+      ],
+      "answer_sources": [],
+      "hit_at_k": null,
+      "first_relevant_rank": null,
+      "reciprocal_rank": null,
+      "unexpected_sources": [
+        "precision-medical-platform.md",
+        "incident-response-tool.md"
+      ],
+      "source_recall": 1.0,
+      "refusal_correct": true,
+      "answer_sources_correct": true,
+      "generated": false
+    }
+  ],
+  "mean_source_recall": 0.9333333333333333,
+  "hit_at_k": 1.0,
+  "mean_reciprocal_rank": 1.0,
+  "refusal_accuracy": 0.8666666666666667,
+  "answer_source_accuracy": 0.4,
+  "embedding_calls": 15,
+  "generation_calls": 10
+}
