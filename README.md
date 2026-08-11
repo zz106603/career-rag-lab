@@ -61,6 +61,12 @@ Embedding을 재사용하므로 VectorStore 비교 중 OpenAI API를 다시 호�
 Retriever는 Qdrant의 `(Document, score)` 결과를 받아 score를 명시적으로
 `SearchResult`에 복원한다. 따라서 검색 근거는 답변 생성과 계속 분리된다.
 
+답변 Prompt도 기존 `build_answer_prompt()`와 LangChain
+`build_langchain_answer_prompt()`를 함께 유지한다. LangChain Template에는
+`query`와 `context` 두 변수만 전달하고, Context에는 검색된 content, source,
+section만 포함한다. 생성 안전 지침은 기존 Responses API의 `instructions`에
+별도로 유지한다.
+
 ## Chunking 전략 비교
 
 기존 수동 구조 기반·고정 크기 Chunker와 LangChain의
