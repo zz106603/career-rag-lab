@@ -6,31 +6,28 @@ Phase 2 — 수동 RAG 파이프라인을 LangChain으로 단계별 교체
 
 ## Current task
 
-P2-07 — 수동·LangChain 파이프라인 평가
+P2-08 — Phase 2 기본 경로 결정
 
 ## Goal
 
-- 기존 평가 질문에서 수동·LangChain 검색과 답변 결과를 비교한다.
-- 단계별 교체가 검색 품질·거부·출처 정확도에 미친 영향을 수치로 확인한다.
+- P2-07 평가 결과를 근거로 기본 RAG 파이프라인을 결정한다.
+- 선택하지 않은 경로의 유지·제거 범위를 명확히 한다.
 
 ## In scope
 
-- 평가 질문 전체의 두 파이프라인 실행
-- 검색 출처 적중, 답변 가능·거부 정확도 비교
-- API 호출 수와 차이 사례 기록
-- Phase 2 기본 경로 판단 근거 마련
+- 검색·거절·출처 정확도와 코드 복잡도 비교
+- 기본 경로 선택 및 전환 범위 기록
 
 ## Out of scope
 
-- 기존 수동 파이프라인 삭제
+- 선택하지 않은 파이프라인 즉시 삭제
 - 운영 배포와 사용자 UI
 
 ## Completion criteria
 
-- 같은 평가 질문에서 수동·LangChain 결과를 나란히 기록한다.
-- 검색 출처와 답변 거부 차이를 설명할 수 있다.
-- 외부 API 호출 수와 비용 발생 범위를 확인할 수 있다.
-- 다음 기본 파이프라인 선택 근거가 남는다.
+- 기본 경로와 선택 이유가 결정 기록에 남는다.
+- API가 선택한 경로를 사용하도록 전환 범위가 정해진다.
+- 회귀 검증 기준이 정해진다.
 
 ## Completed
 
@@ -150,6 +147,14 @@ P2-07 — 수동·LangChain 파이프라인 평가
   - answer, sources, retrieval, generated와 검색·생성 오류 구분을 기존 수동 서비스와 동일하게 유지했다.
   - `gpt-5-nano`, minimal reasoning, 최대 출력 token과 Responses API 사용 설정을 유지했다.
   - 생성 전 조건 분기 결정을 `docs/DECISIONS.md`의 D-016에 기록했다.
+- P2-07 수동·LangChain 파이프라인 평가
+  - 기존 15개 평가 질문을 두 파이프라인에 동일한 `top_k=3`, threshold 0.4로 실행했다.
+  - 검색 출처 재현율, 답변·거절 정확도, 답변 출처 정확도와 외부 API 호출 수를 질문별·전체로 기록했다.
+  - 기존 28개 벡터를 재사용하고 payload만 중첩한 비교 Collection을 만들어 문서 Embedding 비용을 제거했다.
+  - 두 파이프라인은 출처 재현율 0.933, 답변·거절 정확도 0.867, 답변 출처 정확도 0.400으로 같았다.
+  - 각 경로는 질문 Embedding 15회, 답변 생성 10회를 호출했다.
+  - `q14`의 낮은 점수 검색 결과 1·2위 순서만 달랐고 거절 결과에는 영향이 없었다.
+  - 비교 결과를 `data/evaluation/pipeline-comparison.json`에 저장했다.
 
 ## Verified
 
@@ -232,6 +237,9 @@ P2-07 — 수동·LangChain 파이프라인 평가
 - `.venv\Scripts\python.exe -m pytest -q tests/test_langchain_rag.py tests/test_langchain_prompts.py tests/test_answers.py`: 17 passed
 - `.venv\Scripts\python.exe -m pytest -q`: 109 passed, 10 skipped, 1 warning
 - LangChain RAG Chain 데이터 흐름: 질문·top_k·threshold → Retriever 검색 전체 보존 → threshold evidence 선택 → 근거 없음이면 생성 생략·거부 → 근거 있음이면 PromptTemplate → Responses API 기반 `ChatOpenAI` → 문자열 파서 → 기존 `AnswerResult`
+- `.venv\Scripts\python.exe -m pytest -q tests/test_evaluation.py`: 5 passed
+- `.venv\Scripts\python.exe -m app.evaluate_pipelines`: 수동·LangChain 각 15개 질문의 실제 OpenAI/Qdrant 비교 완료
+- 평가 데이터 흐름: 수동 Collection의 기존 벡터 28개 → LangChain payload 비교 Collection → 동일 질문 15개를 각 파이프라인에서 Embedding·검색·근거 판정·생성 → 질문별 지표 → JSON 비교 보고서
 
 ## Learned
 
@@ -273,6 +281,8 @@ P2-07 — 수동·LangChain 파이프라인 평가
 - 검색 문서 content와 모델 지침을 다른 API 입력 영역으로 유지하면 문서 안의 문장을 상위 지침으로 취급하지 않는 경계를 보존할 수 있다.
 - LCEL Chain도 조건 분기를 명시하지 않으면 검색 결과가 비어 있어도 생성 모델을 호출할 수 있으므로 비용·거부 정책은 애플리케이션 상태 전환으로 유지해야 한다.
 - 수동 서비스와 LangChain Chain이 같은 `AnswerResult`를 반환하게 하면 API를 바꾸지 않고 내부 파이프라인만 평가할 수 있다.
+- 동일 벡터와 평가 조건에서 두 경로의 결과가 같았으므로 현재 품질 차이는 프레임워크보다 `top_k`와 threshold 설정의 영향을 더 크게 받는다.
+- 단일 기대 출처 질문도 threshold를 통과한 관련 없는 Chunk가 함께 답변 근거가 되면 출처 정확도가 낮아지므로 검색 적중과 답변 출처 정확도를 별도 지표로 봐야 한다.
 
 ## Problems
 
