@@ -2,32 +2,32 @@
 
 ## Current phase
 
-Phase 2 — 수동 RAG 파이프라인을 LangChain으로 단계별 교체
+Phase 3 — 검색 품질 개선과 평가
 
 ## Current task
 
-P2-08 — Phase 2 기본 경로 결정
+P3-01 — 기준선 평가
 
 ## Goal
 
-- P2-07 평가 결과를 근거로 기본 RAG 파이프라인을 결정한다.
-- 선택하지 않은 경로의 유지·제거 범위를 명확히 한다.
+- Dense Vector Search의 현재 품질을 기준선으로 기록한다.
+- 질문별 검색 실패 유형을 이후 개선 작업의 입력으로 분류한다.
 
 ## In scope
 
-- 검색·거절·출처 정확도와 코드 복잡도 비교
-- 기본 경로 선택 및 전환 범위 기록
+- Hit@K와 MRR
+- Answerability accuracy와 Source accuracy
+- 기대 출처 최초 순위와 잘못 검색된 문서 기록
 
 ## Out of scope
 
-- 선택하지 않은 파이프라인 즉시 삭제
-- 운영 배포와 사용자 UI
+- Metadata Filter, Hybrid Search, reranking 구현
 
 ## Completion criteria
 
-- 기본 경로와 선택 이유가 결정 기록에 남는다.
-- API가 선택한 경로를 사용하도록 전환 범위가 정해진다.
-- 회귀 검증 기준이 정해진다.
+- 평가 질문별 기준선 결과가 기록된다.
+- 최소 네 가지 지표를 계산할 수 있다.
+- 검색 실패 사례를 설명할 수 있다.
 
 ## Completed
 
@@ -155,6 +155,12 @@ P2-08 — Phase 2 기본 경로 결정
   - 각 경로는 질문 Embedding 15회, 답변 생성 10회를 호출했다.
   - `q14`의 낮은 점수 검색 결과 1·2위 순서만 달랐고 거절 결과에는 영향이 없었다.
   - 비교 결과를 `data/evaluation/pipeline-comparison.json`에 저장했다.
+- P2-08 Phase 2 기본 경로 결정
+  - LangChain 증분 색인이 중첩 metadata의 Hash 상태를 읽고 문서 추가·수정·삭제를 처리하도록 연결했다.
+  - 기본 Collection을 `career_documents_langchain`으로 바꾸고 기존 28개 Point가 변경 없음으로 판정되는 것을 확인했다.
+  - API의 기본 검색을 LangChain Retriever로, 기본 답변을 LangChain RAG Chain으로 전환했다.
+  - 수동 구현은 삭제하지 않고 이후 회귀 비교에 보존했다.
+  - 전환 이유와 유지 범위를 `docs/DECISIONS.md`의 D-018에 기록했다.
 
 ## Verified
 
@@ -240,6 +246,11 @@ P2-08 — Phase 2 기본 경로 결정
 - `.venv\Scripts\python.exe -m pytest -q tests/test_evaluation.py`: 5 passed
 - `.venv\Scripts\python.exe -m app.evaluate_pipelines`: 수동·LangChain 각 15개 질문의 실제 OpenAI/Qdrant 비교 완료
 - 평가 데이터 흐름: 수동 Collection의 기존 벡터 28개 → LangChain payload 비교 Collection → 동일 질문 15개를 각 파이프라인에서 Embedding·검색·근거 판정·생성 → 질문별 지표 → JSON 비교 보고서
+- `.venv\Scripts\python.exe -m pytest -q tests/test_langchain_indexing.py tests/test_index_documents.py tests/test_pipeline.py tests/test_config.py tests/test_search_api.py tests/test_answer_api.py`: 24 passed, 1 warning
+- `.venv\Scripts\python.exe -m app.index_documents`: documents=6, chunks=28, unchanged=6, embedded_chunks=0
+- `.venv\Scripts\python.exe -m pytest -q -m integration --run-integration`: 6 passed, 121 deselected, 1 warning
+- 전체 테스트는 코드 검증 115개가 통과했고 Windows `WinError 10014`로 FastAPI 테스트 2개가 일시 실패했으며, 해당 API 테스트만 재실행해 3 passed를 확인했다.
+- 기본 API 데이터 흐름: Markdown 변경 → LangChain payload 증분 색인 → `/search`의 LangChain Retriever → `/answer`의 LCEL 근거 분기·생성
 
 ## Learned
 
@@ -283,6 +294,7 @@ P2-08 — Phase 2 기본 경로 결정
 - 수동 서비스와 LangChain Chain이 같은 `AnswerResult`를 반환하게 하면 API를 바꾸지 않고 내부 파이프라인만 평가할 수 있다.
 - 동일 벡터와 평가 조건에서 두 경로의 결과가 같았으므로 현재 품질 차이는 프레임워크보다 `top_k`와 threshold 설정의 영향을 더 크게 받는다.
 - 단일 기대 출처 질문도 threshold를 통과한 관련 없는 Chunk가 함께 답변 근거가 되면 출처 정확도가 낮아지므로 검색 적중과 답변 출처 정확도를 별도 지표로 봐야 한다.
+- LangChain을 기본 경로로 전환하려면 Chain만 바꾸는 것이 아니라 증분 색인의 상태 조회·삭제 filter도 중첩 metadata 경로에 맞춰야 한다.
 
 ## Problems
 
@@ -293,7 +305,7 @@ P2-08 — Phase 2 기본 경로 결정
 
 ## Next task
 
-P2-08 — Phase 2 기본 경로 결정
+P3-01 — 기준선 평가
 
 ## Update rule
 

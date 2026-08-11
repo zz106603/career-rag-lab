@@ -11,7 +11,8 @@ from app.chunking import Chunk, chunk_by_structure
 from app.config import Settings, get_settings
 from app.documents import Document, load_markdown_directory
 from app.embeddings import EmbeddedChunk, create_openai_client, embed_chunks
-from app.indexing import IndexedDocumentState, create_qdrant_indexer
+from app.indexing import IndexedDocumentState
+from app.langchain_indexing import LangChainQdrantIndexer
 
 
 DEFAULT_DOCUMENTS_PATH = Path(__file__).parents[1] / "data" / "documents"
@@ -52,9 +53,11 @@ def index_documents(
         _prepare_document(document, max_chars=max_chars, settings=active_settings)
         for document in documents
     ]
-    indexer = create_qdrant_indexer(
-        client=qdrant_client,
-        settings=active_settings,
+    active_qdrant_client = qdrant_client or QdrantClient(url=active_settings.qdrant_url)
+    indexer = LangChainQdrantIndexer(
+        active_qdrant_client,
+        active_settings.qdrant_collection,
+        active_settings.embedding_dimensions,
     )
     indexer.ensure_collection()
     existing_states = indexer.list_indexed_documents()
