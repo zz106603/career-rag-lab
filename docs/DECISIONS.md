@@ -343,3 +343,20 @@
 - 장점: 검색 순위 개선과 threshold 기반 거절 개선의 영향을 독립적으로 비교할 수 있다.
 - 단점: Hit@K 1.0이어도 다중 문서 질문의 기대 출처를 전부 찾았다는 뜻은 아니므로 source recall과 질문별 결과를 함께 봐야 한다.
 - 재검토 조건: 답변 불가 질문에도 검색하면 안 되는 명시적 negative 문서 기준을 추가할 때
+
+---
+
+## D-020. Metadata Filter는 Vector Search 전에 AND 조건으로 적용한다
+
+- 날짜: 2026-08-11
+- 상태: 확정
+- 관련 Phase: Phase 3
+- 문제: 관련 없는 문서를 줄이기 위해 metadata 조건을 검색 결과에 언제, 어떤 방식으로 적용할지 정해야 한다.
+- 선택지:
+  - Vector Search Top K 결과를 받은 뒤 애플리케이션에서 제거
+  - Qdrant 검색 요청에 중첩 metadata exact-match 조건을 전달
+- 결정: `document_type`, `project_name`, `source`의 입력된 조건을 `metadata.*` FieldCondition으로 만들고 Qdrant Vector Search 전에 AND로 적용한다.
+- 이유: 검색 후 제거하면 결과 수가 Top K보다 부족해지고, 조건 밖 문서가 후보 순위를 먼저 차지하는 문제를 막지 못한다.
+- 장점: 조건 범위 안에서 Top K를 채우며 Retriever, `/search`, `/answer`가 같은 filter 계약을 사용한다.
+- 단점: 사용자가 잘못된 조건을 주면 관련 문서가 있어도 결과가 비며, exact match라 값의 표기와 대소문자가 정확해야 한다.
+- 재검토 조건: 복수 값 OR 조건, 날짜 범위 또는 자동 filter 추출이 필요할 때

@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Any
 
 from langchain_core.callbacks import CallbackManagerForRetrieverRun
@@ -6,6 +7,7 @@ from langchain_core.embeddings import Embeddings
 from langchain_core.retrievers import BaseRetriever
 from langchain_qdrant import QdrantVectorStore
 from qdrant_client import QdrantClient
+from qdrant_client import models
 
 from app.config import Settings, get_settings
 from app.embeddings import create_langchain_embeddings
@@ -15,12 +17,27 @@ from app.search import InvalidSearchInputError, SearchPayloadError, SearchResult
 SCORE_METADATA_KEY = "_retrieval_score"
 
 
+@dataclass(frozen=True)
+class SearchFilters:
+    """Qdrant에 저장된 출처 metadata의 exact-match 검색 조건."""
+
+    document_type: str | None = None
+    project_name: str | None = None
+    source: str | None = None
+
+    def __post_init__(self) -> None:
+        for value in (self.document_type, self.project_name, self.source):
+            if value is not None and not value.strip():
+                raise InvalidSearchInputError("filter values must not be empty")
+
+
 class ObservableQdrantRetriever(BaseRetriever):
     """LangChain Retriever 결과에 Qdrant score를 명시적으로 보존한다."""
 
     vector_store: QdrantVectorStore
     top_k: int = 5
     score_threshold: float | None = None
+    metadata_filter: models.Filter | None = None
 
     def _get_relevant_documents(
         self,
@@ -32,6 +49,7 @@ class ObservableQdrantRetriever(BaseRetriever):
             query,
             k=self.top_k,
             score_threshold=self.score_threshold,
+            filter=self.metadata_filter,
         )
         return [
             Document(
@@ -55,12 +73,14 @@ class LangChainRetrievalService:
         *,
         top_k: int = 5,
         score_threshold: float | None = None,
+        filters: SearchFilters | None = None,
     ) -> list[SearchResult]:
         _validate_options(query, top_k, score_threshold)
         retriever = ObservableQdrantRetriever(
             vector_store=self.vector_store,
             top_k=top_k,
             score_threshold=score_threshold,
+            metadata_filter=_to_qdrant_filter(filters),
         )
         return [_to_search_result(document) for document in retriever.invoke(query)]
 
@@ -95,6 +115,25 @@ def _validate_options(
         raise InvalidSearchInputError("top_k must be greater than 0")
     if score_threshold is not None and not -1.0 <= score_threshold <= 1.0:
         raise InvalidSearchInputError("score_threshold must be between -1 and 1")
+
+
+def _to_qdrant_filter(filters: SearchFilters | None) -> models.Filter | None:
+    if filters is None:
+        return None
+    values = {
+        "document_type": filters.document_type,
+        "project_name": filters.project_name,
+        "source": filters.source,
+    }
+    conditions = [
+        models.FieldCondition(
+            key=f"metadata.{key}",
+            match=models.MatchValue(value=value),
+        )
+        for key, value in values.items()
+        if value is not None
+    ]
+    return models.Filter(must=conditions) if conditions else None
 
 
 def _to_search_result(document: Document) -> SearchResult:

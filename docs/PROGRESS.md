@@ -6,27 +6,26 @@ Phase 3 — 검색 품질 개선과 평가
 
 ## Current task
 
-P3-02 — Metadata Filter
+P3-03 — Keyword 또는 Sparse Search
 
 ## Goal
 
-- 문서 metadata 조건으로 검색 범위를 제한한다.
-- 조건 검색이 관련 없는 문서를 줄이는지 기준선과 비교한다.
+- Dense Search가 놓치는 정확한 기술명과 키워드 검색을 보완한다.
+- Sparse 또는 Keyword Search 후보를 관찰 가능하게 구현한다.
 
 ## In scope
 
-- 문서 유형, 프로젝트 등 기존 metadata filter
-- filter 적용 전후 검색 결과 비교
+- Keyword 또는 Sparse Search 방식 선택
+- 정확한 기술명 질문의 검색 결과 비교
 
 ## Out of scope
 
-- Hybrid Search와 reranking
+- Dense·Sparse 결합과 reranking
 
 ## Completion criteria
 
-- Retriever에 metadata 조건을 전달할 수 있다.
-- 조건에 맞지 않는 문서가 검색 결과에서 제외된다.
-- 기존 무조건 검색 동작은 유지된다.
+- 정확 키워드 검색 결과를 Dense 결과와 분리해 볼 수 있다.
+- 기존 평가 질문에서 차이를 기록한다.
 
 ## Completed
 
@@ -166,6 +165,12 @@ P3-02 — Metadata Filter
   - P2에서 실제 실행한 LangChain 결과를 재사용해 추가 OpenAI 호출과 문서 외부 전송 없이 기준선을 생성했다.
   - Hit@3 1.000, MRR 1.000, Answerability accuracy 0.867, Source accuracy 0.400을 확인했다.
   - 검색 지표의 평가 대상을 `docs/DECISIONS.md`의 D-019에 기록했다.
+- P3-02 Metadata Filter
+  - `document_type`, `project_name`, `source` exact-match 조건을 `SearchFilters`로 정의했다.
+  - 입력된 조건을 `metadata.*` Qdrant FieldCondition의 AND filter로 변환해 Vector Search 전에 적용했다.
+  - `/search`와 `/answer`, LCEL Chain이 같은 filter를 Retriever까지 전달하도록 연결했다.
+  - 실제 Docker Qdrant에서 무조건 검색의 프로젝트·프로필 2개가 `document_type=project` 조건 적용 후 프로젝트 1개로 제한되는 것을 확인했다.
+  - filter 적용 시점과 결합 방식을 `docs/DECISIONS.md`의 D-020에 기록했다.
 
 ## Verified
 
@@ -260,6 +265,10 @@ P3-02 — Metadata Filter
 - `.venv\Scripts\python.exe -m pytest -q tests/test_evaluation.py`: 7 passed
 - `.venv\Scripts\python.exe -m pytest -q`: 119 passed, 10 skipped, 1 warning
 - 기준선 데이터 흐름: P2 실제 LangChain 평가 결과 → 질문별 기대 출처와 검색 순위 비교 → Hit@3·MRR → 생성·거절 및 답변 출처 비교 → JSON 기준선
+- `.venv\Scripts\python.exe -m pytest -q tests/test_langchain_retrieval_integration.py --run-integration`: 2 passed
+- `.venv\Scripts\python.exe -m pytest -q tests/test_langchain_retrieval.py tests/test_langchain_rag.py`: 15 passed
+- 전체 테스트는 121 passed, 11 skipped였고 Windows `WinError 10014`로 API 테스트 1개가 일시 실패했으며, 해당 테스트를 재실행해 1 passed를 확인했다.
+- Metadata Filter 데이터 흐름: API filter 입력 → `SearchFilters` → `metadata.*` exact-match AND 조건 → Qdrant 후보 제한 → 제한된 범위의 Cosine Top K → retrieval·답변
 
 ## Learned
 
@@ -306,6 +315,7 @@ P3-02 — Metadata Filter
 - LangChain을 기본 경로로 전환하려면 Chain만 바꾸는 것이 아니라 증분 색인의 상태 조회·삭제 filter도 중첩 metadata 경로에 맞춰야 한다.
 - Hit@K는 기대 출처 중 하나만 찾아도 성공하므로 다중 문서 질문의 전체 출처 누락을 드러내지 못하며 source recall을 함께 봐야 한다.
 - MRR 1.0은 정답 문서가 항상 첫 번째라는 뜻이지만 뒤 순위에 관련 없는 문서가 섞이지 않았다는 뜻은 아니다.
+- Metadata Filter는 의미 유사도를 개선하는 알고리즘이 아니라 검색 가능한 문서 범위를 먼저 줄이는 장치이므로, 올바른 조건을 알고 있는 질문에서만 사용해야 한다.
 
 ## Problems
 
@@ -317,7 +327,7 @@ P3-02 — Metadata Filter
 
 ## Next task
 
-P3-02 — Metadata Filter
+P3-03 — Keyword 또는 Sparse Search
 
 ## Update rule
 

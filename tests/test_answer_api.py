@@ -9,6 +9,7 @@ from app.answers import (
     RetrievalPipelineError,
 )
 from app.main import app, get_answer_service
+from app.langchain_retrieval import SearchFilters
 from app.search import SearchResult
 
 
@@ -31,7 +32,12 @@ def test_answer_api_separates_answer_sources_and_retrieval() -> None:
     try:
         response = TestClient(app).post(
             "/answer",
-            json={"query": "질문", "top_k": 3, "score_threshold": 0.4},
+            json={
+                "query": "질문",
+                "top_k": 3,
+                "score_threshold": 0.4,
+                "filters": {"project_name": "프로젝트"},
+            },
         )
     finally:
         app.dependency_overrides.clear()
@@ -51,6 +57,12 @@ def test_answer_api_separates_answer_sources_and_retrieval() -> None:
         ],
         "generated": True,
     }
+    service.answer.assert_called_once_with(
+        "질문",
+        top_k=3,
+        score_threshold=0.4,
+        filters=SearchFilters(project_name="프로젝트"),
+    )
 
 
 def test_answer_api_exposes_refusal_without_generation() -> None:
@@ -72,7 +84,7 @@ def test_answer_api_exposes_refusal_without_generation() -> None:
     assert response.json()["status"] == "insufficient_evidence"
     assert response.json()["generated"] is False
     service.answer.assert_called_once_with(
-        "없는 경험", top_k=None, score_threshold=None
+        "없는 경험", top_k=None, score_threshold=None, filters=None
     )
 
 

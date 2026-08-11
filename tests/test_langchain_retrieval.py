@@ -3,7 +3,7 @@ from qdrant_client import QdrantClient
 import pytest
 
 from app.langchain_indexing import index_document_with_langchain
-from app.langchain_retrieval import LangChainRetrievalService
+from app.langchain_retrieval import LangChainRetrievalService, SearchFilters
 from app.search import InvalidSearchInputError, QdrantSearcher
 from tests.test_indexing import make_item
 
@@ -26,11 +26,28 @@ def make_vector_store_service() -> tuple[
 ]:
     client = QdrantClient(":memory:")
     items = [make_item(1), make_item(2), make_item(3)]
+    items[2] = replace(
+        items[2],
+        chunk=replace(
+            items[2].chunk,
+            metadata=replace(
+                items[2].chunk.metadata,
+                document_id="document-2",
+                chunk_id="document-2-chunk-3",
+                source="profile.md",
+                document_type="profile",
+                project_name=None,
+            ),
+        ),
+    )
     items[0].vector[:] = [1.0, 0.0, 0.0, 0.0]
     items[1].vector[:] = [0.8, 0.2, 0.0, 0.0]
     items[2].vector[:] = [0.0, 1.0, 0.0, 0.0]
     index_document_with_langchain(
-        items, client=client, collection_name="documents", vector_size=4
+        items[:2], client=client, collection_name="documents", vector_size=4
+    )
+    index_document_with_langchain(
+        items[2:], client=client, collection_name="documents", vector_size=4
     )
     embeddings = FixedQueryEmbeddings([1.0, 0.0, 0.0, 0.0])
     from langchain_qdrant import QdrantVectorStore
@@ -78,6 +95,30 @@ def test_retriever_threshold_can_return_no_evidence() -> None:
     assert service.search("질문", top_k=3, score_threshold=0.5) == []
 
 
+def test_retriever_applies_nested_metadata_filters_before_ranking() -> None:
+    _, service, _ = make_vector_store_service()
+
+    matched = service.search(
+        "질문",
+        top_k=3,
+        filters=SearchFilters(
+            document_type="project", project_name="프로젝트", source="source.md"
+        ),
+    )
+    excluded = service.search(
+        "질문", top_k=3, filters=SearchFilters(source="other.md")
+    )
+
+    assert len(matched) == 2
+    assert {item.source for item in matched} == {"source.md"}
+    assert excluded == []
+
+
+def test_retriever_rejects_blank_filter_value() -> None:
+    with pytest.raises(InvalidSearchInputError, match="filter"):
+        SearchFilters(project_name=" ")
+
+
 @pytest.mark.parametrize(
     ("query", "top_k", "threshold", "message"),
     [(" ", 1, None, "query"), ("질문", 0, None, "top_k"), ("질문", 1, 1.1, "threshold")],
@@ -89,3 +130,4 @@ def test_retriever_rejects_invalid_options(
 
     with pytest.raises(InvalidSearchInputError, match=message):
         service.search(query, top_k=top_k, score_threshold=threshold)
+from dataclasses import replace

@@ -3,6 +3,7 @@ from unittest.mock import Mock
 from fastapi.testclient import TestClient
 
 from app.main import app, get_search_service
+from app.langchain_retrieval import SearchFilters
 from app.search import SearchResult
 
 
@@ -20,7 +21,12 @@ def test_search_api_returns_retrieval_without_generated_answer() -> None:
     try:
         response = TestClient(app).post(
             "/search",
-            json={"query": "어떤 성과가 있나요?", "top_k": 3, "score_threshold": 0.7},
+            json={
+                "query": "어떤 성과가 있나요?",
+                "top_k": 3,
+                "score_threshold": 0.7,
+                "filters": {"document_type": "project", "source": "source.md"},
+            },
         )
     finally:
         app.dependency_overrides.clear()
@@ -39,7 +45,10 @@ def test_search_api_returns_retrieval_without_generated_answer() -> None:
     }
     assert "answer" not in response.json()
     service.search.assert_called_once_with(
-        "어떤 성과가 있나요?", top_k=3, score_threshold=0.7
+        "어떤 성과가 있나요?",
+        top_k=3,
+        score_threshold=0.7,
+        filters=SearchFilters(document_type="project", source="source.md"),
     )
 
 
@@ -50,6 +59,12 @@ def test_search_api_validates_top_k_and_threshold() -> None:
     assert (
         client.post(
             "/search", json={"query": "질문", "score_threshold": 1.1}
+        ).status_code
+        == 422
+    )
+    assert (
+        client.post(
+            "/search", json={"query": "질문", "filters": {"source": ""}}
         ).status_code
         == 422
     )

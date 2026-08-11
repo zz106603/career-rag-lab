@@ -23,6 +23,7 @@ from app.embeddings import MissingOpenAIAPIKeyError
 from app.langchain_prompts import ANSWER_PROMPT_TEMPLATE, format_evidence_context
 from app.langchain_retrieval import (
     LangChainRetrievalService,
+    SearchFilters,
     create_langchain_retrieval_service,
 )
 from app.search import SearchResult
@@ -68,6 +69,7 @@ class LangChainRagService:
         *,
         top_k: int | None = None,
         score_threshold: float | None = None,
+        filters: SearchFilters | None = None,
     ) -> AnswerResult:
         active_top_k = self.settings.answer_top_k if top_k is None else top_k
         active_threshold = (
@@ -82,6 +84,7 @@ class LangChainRagService:
                     "query": query,
                     "top_k": active_top_k,
                     "score_threshold": active_threshold,
+                    "filters": filters,
                 }
             )
         except RetrievalPipelineError:
@@ -94,7 +97,9 @@ class LangChainRagService:
     def _retrieve(self, state: Mapping[str, Any]) -> list[SearchResult]:
         try:
             return self.retrieval_service.search(
-                str(state["query"]), top_k=int(state["top_k"])
+                str(state["query"]),
+                top_k=int(state["top_k"]),
+                filters=state.get("filters"),
             )
         except Exception as error:
             raise RetrievalPipelineError("Retrieval failed") from error

@@ -144,9 +144,16 @@ Invoke-RestMethod -Method Post `
 색인이 끝난 문서에서 LLM 답변 생성 없이 관련 Chunk만 검색할 수 있다. 질문
 Embedding을 생성하므로 이 요청은 OpenAI API 비용이 소량 발생한다.
 
+`filters`를 지정하면 Qdrant가 Vector Search 전에 문서 범위를 제한한다. 지원 조건은
+`document_type`, `project_name`, `source`이며 여러 조건은 AND로 결합한다.
+
 ```powershell
 $body = @{
     query = "장애 대응 자동화 경험이 있나요?"
+    filters = @{
+        document_type = "project"
+        project_name = "장애 대응 자동화 도구"
+    }
     top_k = 5
     score_threshold = 0.3
 } | ConvertTo-Json
