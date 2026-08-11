@@ -6,30 +6,31 @@ Phase 2 — 수동 RAG 파이프라인을 LangChain으로 단계별 교체
 
 ## Current task
 
-P2-05 — PromptTemplate 적용
+P2-06 — RAG Chain 구성
 
 ## Goal
 
-- 기존 문자열 조합 Prompt와 LangChain PromptTemplate을 같은 근거에서 비교한다.
-- 질문과 Context 구분, 출처와 근거 부족 규칙을 유지한다.
+- LangChain Retriever, PromptTemplate과 생성 모델을 하나의 Chain으로 연결한다.
+- 수동 파이프라인과 검색 근거·거부·답변 결과를 비교한다.
 
 ## In scope
 
-- LangChain PromptTemplate 구성
-- 동일 질문·검색 근거에서 기존 Prompt와 결과 비교
-- Context와 source 구성 보존
-- 근거 부족 시 생성 차단 유지
+- LangChain RAG Chain 구성
+- 검색 결과와 생성 답변 분리
+- 근거 부족 시 생성 차단
+- 기존 `/answer` 결과 계약과 비교
 
 ## Out of scope
 
-- 전체 RAG Chain 구성
-- 기존 수동 Prompt 삭제
+- 기존 수동 RAG 파이프라인 삭제
+- 평가 자동화와 운영 배포
 
 ## Completion criteria
 
-- 같은 질문과 근거에서 수동 Prompt와 LangChain Prompt를 비교할 수 있다.
-- 검색된 content와 source만 Context로 사용한다.
-- 기존 근거 부족 거부와 답변 API가 계속 실행된다.
+- LangChain 경로로 검색부터 답변 생성까지 실행할 수 있다.
+- 근거 부족이면 생성 모델을 호출하지 않는다.
+- answer, sources, retrieval, generated가 기존처럼 분리된다.
+- 기존 수동 파이프라인이 계속 실행된다.
 
 ## Completed
 
@@ -135,6 +136,13 @@ P2-05 — PromptTemplate 적용
   - top_k와 score threshold를 유지하고 근거가 없으면 빈 결과를 반환한다.
   - 서비스 생성 시 LangChain의 dummy Embedding 검증을 비활성화해 질문 전 불필요한 유료 호출을 방지했다.
   - score 관찰 가능성 결정을 `docs/DECISIONS.md`의 D-014에 기록했다.
+- P2-05 PromptTemplate 적용
+  - LangChain `PromptTemplate`에 질문과 검색 Context를 명시적 변수로 분리했다.
+  - 같은 질문·근거에서 기존 수동 Prompt와 LangChain Prompt가 완전히 같은 문자열인지 비교했다.
+  - Context에는 content, source, section만 포함하고 score와 내부 Chunk metadata는 제외했다.
+  - 검색 문서 안의 지시 문구가 근거 content 영역에 머무는지 검증했다.
+  - Responses API의 안전 지침은 기존 `instructions`에 별도로 유지했다.
+  - Prompt 변수 경계를 `docs/DECISIONS.md`의 D-015에 기록했다.
 
 ## Verified
 
@@ -211,6 +219,9 @@ P2-05 — PromptTemplate 적용
 - `.venv\Scripts\python.exe -m pytest -q`: 99 passed, 9 skipped, 1 warning
 - `.venv\Scripts\python.exe -m pytest -q -m integration --run-integration`: 6 passed, 102 deselected, 1 warning
 - 실제 Docker Qdrant 임시 Collection에서 같은 질문 벡터로 수동 검색과 LangChain Retriever를 실행해 상위 2개 content, source, 순서와 Cosine score가 일치하는 것을 확인했다.
+- `.venv\Scripts\python.exe -m pytest -q tests/test_langchain_prompts.py tests/test_answers.py tests/test_answer_api.py`: 14 passed, 1 warning
+- `.venv\Scripts\python.exe -m pytest -q`: 103 passed, 9 skipped, 1 warning
+- PromptTemplate 데이터 흐름: 질문과 threshold 통과 `SearchResult` → content·source·section만 Context 문자열로 직렬화 → `query`·`context` Template 변수 치환 → 기존 수동 Prompt와 동일한 Responses API input 문자열
 
 ## Learned
 
@@ -248,6 +259,8 @@ P2-05 — PromptTemplate 적용
 - VectorStore만 비교할 때 기존 벡터를 Adapter로 재사용하면 비용뿐 아니라 서로 다른 API 응답이 비교 결과에 섞이는 것도 막을 수 있다.
 - LangChain의 기본 Retriever 반환값은 문서 중심이므로 검색 품질을 수치로 관찰하려면 VectorStore의 score 결과를 명시적으로 전달해야 한다.
 - QdrantVectorStore의 Collection 검증은 dummy text Embedding을 실행하므로 검색 서비스 생성 시 API 호출을 피하려면 색인 단계 검증과 역할을 분리해야 한다.
+- PromptTemplate은 문자열 조합을 구조화하지만 어떤 검색 metadata를 Context에 포함할지는 애플리케이션이 계속 명시적으로 결정해야 한다.
+- 검색 문서 content와 모델 지침을 다른 API 입력 영역으로 유지하면 문서 안의 문장을 상위 지침으로 취급하지 않는 경계를 보존할 수 있다.
 
 ## Problems
 
@@ -258,7 +271,7 @@ P2-05 — PromptTemplate 적용
 
 ## Next task
 
-P2-06 — RAG Chain 구성
+P2-07 — 수동·LangChain 파이프라인 평가
 
 ## Update rule
 

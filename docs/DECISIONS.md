@@ -258,3 +258,20 @@
 - 장점: 기존 `/search` 응답 계약과 답변의 retrieval 필드를 유지하면서 LangChain Retriever 인터페이스를 사용할 수 있다.
 - 단점: 기본 Retriever를 그대로 사용하는 것보다 얇은 사용자 정의 계층이 추가되며 LangChain의 내부 payload 식별 metadata도 함께 반환된다.
 - 재검토 조건: LangChain이 Retriever 결과 score를 표준 필드로 제공하거나 평가 계층에서 별도 trace로 score를 관리할 때
+
+---
+
+## D-015. PromptTemplate은 질문과 검색 Context만 변수화한다
+
+- 날짜: 2026-08-10
+- 상태: 확정
+- 관련 Phase: Phase 2
+- 문제: 수동 Prompt를 LangChain으로 교체하면서 검색 근거의 경계와 Responses API의 상위 지침을 유지해야 한다.
+- 선택지:
+  - 안전 지침까지 하나의 PromptTemplate 문자열에 포함
+  - 안전 지침은 Responses API `instructions`에 유지하고 질문·Context만 Template 변수로 분리
+- 결정: `PromptTemplate`은 `query`와 `context`만 입력받고, Context에는 검색된 content, source, section만 넣는다. 기존 `ANSWER_INSTRUCTIONS`는 변경하지 않는다.
+- 이유: 검색 문서 안의 텍스트와 애플리케이션 지침을 같은 계층에 섞지 않고, 이번 단계에서는 Prompt 형식화 부분만 독립적으로 비교하기 위해서다.
+- 장점: 같은 입력에서 수동 Prompt와 완전히 동일한 문자열을 비교할 수 있고 score·내부 metadata가 모델 Context에 불필요하게 포함되지 않는다.
+- 단점: Context 직렬화 로직이 수동·LangChain 경로에 일시적으로 중복되며 실제 생성 호출 연결은 다음 Chain 구성 단계에 남는다.
+- 재검토 조건: LangChain RAG Chain이 기본 경로가 되어 메시지 기반 ChatPromptTemplate 또는 구조화 Context가 필요할 때
