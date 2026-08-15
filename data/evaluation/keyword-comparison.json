@@ -1,0 +1,141 @@
+{
+  "scope": "exact_keyword",
+  "top_k": 3,
+  "external_api_calls": 0,
+  "cases": [
+    {
+      "question_id": "q04",
+      "question": "RabbitMQ를 사용한 프로젝트와 처리 방식을 알려주세요.",
+      "expected_sources": [
+        "finance-transfer-system.md"
+      ],
+      "dense_sources": [
+        "finance-transfer-system.md",
+        "experience-boundaries.md",
+        "backend-skills.md"
+      ],
+      "keyword_sources": [
+        "backend-skills.md",
+        "finance-transfer-system.md",
+        "backend-skills.md"
+      ],
+      "sparse_sources": [
+        "backend-skills.md",
+        "finance-transfer-system.md",
+        "backend-skills.md"
+      ],
+      "keyword_first_relevant_rank": 2,
+      "keyword_results": [
+        {
+          "source": "backend-skills.md",
+          "score": 0.55,
+          "matched_terms": [
+            "rabbitmq",
+            "사용한",
+            "처리"
+          ]
+        },
+        {
+          "source": "finance-transfer-system.md",
+          "score": 0.35333333333333333,
+          "matched_terms": [
+            "rabbitmq",
+            "처리"
+          ]
+        },
+        {
+          "source": "backend-skills.md",
+          "score": 0.18666666666666665,
+          "matched_terms": [
+            "처리"
+          ]
+        }
+      ],
+      "sparse_first_relevant_rank": 2,
+      "sparse_results": [
+        {
+          "source": "backend-skills.md",
+          "score": 9.31153
+        },
+        {
+          "source": "finance-transfer-system.md",
+          "score": 3.3587122
+        },
+        {
+          "source": "backend-skills.md",
+          "score": 2.9909873
+        }
+      ]
+    },
+    {
+      "question_id": "q05",
+      "question": "Playwright를 어디에 사용했나요?",
+      "expected_sources": [
+        "social-analytics-dashboard.md"
+      ],
+      "dense_sources": [
+        "social-analytics-dashboard.md",
+        "experience-boundaries.md",
+        "finance-transfer-system.md"
+      ],
+      "keyword_sources": [
+        "social-analytics-dashboard.md"
+      ],
+      "sparse_sources": [
+        "social-analytics-dashboard.md"
+      ],
+      "keyword_first_relevant_rank": 1,
+      "keyword_results": [
+        {
+          "source": "social-analytics-dashboard.md",
+          "score": 0.3433333333333333,
+          "matched_terms": [
+            "playwright"
+          ]
+        }
+      ],
+      "sparse_first_relevant_rank": 1,
+      "sparse_results": [
+        {
+          "source": "social-analytics-dashboard.md",
+          "score": 2.9618309
+        }
+      ]
+    },
+    {
+      "question_id": "q06",
+      "question": "Celery를 적용한 이유는 무엇인가요?",
+      "expected_sources": [
+        "precision-medical-platform.md"
+      ],
+      "dense_sources": [
+        "precision-medical-platform.md",
+        "experience-boundaries.md",
+        "incident-response-tool.md"
+      ],
+      "keyword_sources": [
+        "precision-medical-platform.md"
+      ],
+      "sparse_sources": [
+        "precision-medical-platform.md"
+      ],
+      "keyword_first_relevant_rank": 1,
+      "keyword_results": [
+        {
+          "source": "precision-medical-platform.md",
+          "score": 0.26,
+          "matched_terms": [
+            "celery"
+          ]
+        }
+      ],
+      "sparse_first_relevant_rank": 1,
+      "sparse_results": [
+        {
+          "source": "precision-medical-platform.md",
+          "score": 2.9618309
+        }
+      ]
+    }
+  ]
+}

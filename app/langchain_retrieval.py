@@ -80,7 +80,7 @@ class LangChainRetrievalService:
             vector_store=self.vector_store,
             top_k=top_k,
             score_threshold=score_threshold,
-            metadata_filter=_to_qdrant_filter(filters),
+            metadata_filter=build_qdrant_filter(filters),
         )
         return [_to_search_result(document) for document in retriever.invoke(query)]
 
@@ -117,7 +117,7 @@ def _validate_options(
         raise InvalidSearchInputError("score_threshold must be between -1 and 1")
 
 
-def _to_qdrant_filter(filters: SearchFilters | None) -> models.Filter | None:
+def build_qdrant_filter(filters: SearchFilters | None) -> models.Filter | None:
     if filters is None:
         return None
     values = {

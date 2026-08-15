@@ -30,7 +30,7 @@ def get_settings() -> Settings:
     return Settings(
         qdrant_url=os.getenv("QDRANT_URL", "http://localhost:6333"),
         qdrant_collection=os.getenv(
-            "QDRANT_COLLECTION", "career_documents_langchain"
+            "QDRANT_COLLECTION", "career_documents_hybrid"
         ),
         openai_api_key=os.getenv("OPENAI_API_KEY"),
         embedding_model=os.getenv(

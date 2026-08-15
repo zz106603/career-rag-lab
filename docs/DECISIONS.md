@@ -360,3 +360,37 @@
 - 장점: 조건 범위 안에서 Top K를 채우며 Retriever, `/search`, `/answer`가 같은 filter 계약을 사용한다.
 - 단점: 사용자가 잘못된 조건을 주면 관련 문서가 있어도 결과가 비며, exact match라 값의 표기와 대소문자가 정확해야 한다.
 - 재검토 조건: 복수 값 OR 조건, 날짜 범위 또는 자동 filter 추출이 필요할 때
+
+---
+
+## D-021. Keyword Search는 Dense 결과와 분리된 학습용 lexical 기준선으로 시작한다
+
+- 날짜: 2026-08-11
+- 상태: 확정
+- 관련 Phase: Phase 3
+- 문제: 정확한 기술명 검색을 관찰하기 위해 처음부터 Sparse Vector 색인과 Hybrid 결합까지 동시에 도입할지 결정해야 한다.
+- 선택지:
+  - Sparse Vector와 Hybrid Search를 한 번에 구현
+  - 기존 Chunk payload를 토큰화한 독립 Keyword Search를 먼저 구현
+- 결정: 영문 기술명과 한글 토큰을 분리하고 서로 다른 일치 단어 수와 제한된 반복 횟수로 keyword score를 계산한다. 결과는 `/search/keyword`로 Dense Search와 분리해 노출한다.
+- 이유: P3-03에서는 어휘 일치 검색의 장단점을 먼저 관찰하고 결합 방식은 P3-04에서 독립적으로 다뤄야 한다.
+- 장점: 추가 Embedding이나 외부 API 없이 정확한 기술명 후보를 확인하고 Dense 결과와 직접 비교할 수 있다.
+- 단점: 모든 Chunk를 읽어 애플리케이션에서 점수를 계산하므로 대규모 운영에 부적합하고, corpus 기반 IDF나 형태소 분석이 없어 일반 단어가 순위에 과도하게 영향을 줄 수 있다.
+- 재검토 조건: P3-04 Hybrid Search에서 운영 가능한 Sparse Vector 또는 Qdrant 전문 검색 방식으로 결합할 때
+
+---
+
+## D-022. Sparse Vector는 결정적 token hash와 Qdrant IDF를 사용한다
+
+- 날짜: 2026-08-11
+- 상태: 확정
+- 관련 Phase: Phase 3
+- 문제: 외부 Sparse Embedding 모델을 추가하지 않고 Qdrant 기반 Sparse Search와 Hybrid Retrieval 구조를 학습해야 한다.
+- 선택지:
+  - 외부 SPLADE·BM25 Embedding 모델 의존성 추가
+  - 기존 tokenizer의 token을 결정적 index로 변환하고 Qdrant IDF modifier 사용
+- 결정: token의 SHA-256 앞 32bit를 sparse index로, 문서 내 출현 횟수를 값으로 사용하고 `text-sparse` vector에 Qdrant IDF modifier를 적용한다.
+- 이유: 추가 모델 다운로드와 외부 API 없이 문서·질문을 같은 sparse 공간에 넣고 Qdrant 자체 sparse 검색을 경험할 수 있다.
+- 장점: 같은 token은 실행마다 같은 index를 가지며 기존 Dense Vector를 재Embedding하지 않고 새 Collection으로 복사할 수 있다.
+- 단점: 32bit hash 충돌 가능성이 있고 형태소 분석·학습된 sparse 표현이 없어 어휘가 다른 동의어는 찾지 못한다.
+- 재검토 조건: 실제 규모의 corpus에서 충돌·품질 문제가 나타나거나 학습된 Sparse Embedding 모델을 도입할 때

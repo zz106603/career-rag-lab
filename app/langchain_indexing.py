@@ -6,13 +6,16 @@ from langchain_qdrant import QdrantVectorStore
 from qdrant_client import QdrantClient, models
 
 from app.embeddings import EmbeddedChunk
+from app.chunking import Chunk
 from app.indexing import (
+    CollectionConfigurationError,
     IndexResult,
     IndexedDocumentState,
     IndexingError,
     InvalidIndexInputError,
     QdrantIndexer,
 )
+from app.sparse_search import SPARSE_VECTOR_NAME, encode_sparse
 
 
 class PrecomputedEmbeddings(Embeddings):
@@ -127,9 +130,31 @@ class LangChainQdrantIndexer:
         self.collection_name = collection_name
         self.vector_size = vector_size
         self._collection = QdrantIndexer(client, collection_name, vector_size)
+        self.sparse_configuration_created = False
 
     def ensure_collection(self) -> bool:
-        return self._collection.ensure_collection()
+        if not self.client.collection_exists(self.collection_name):
+            self.client.create_collection(
+                collection_name=self.collection_name,
+                vectors_config=models.VectorParams(
+                    size=self.vector_size, distance=models.Distance.COSINE
+                ),
+                sparse_vectors_config={
+                    SPARSE_VECTOR_NAME: models.SparseVectorParams(
+                        modifier=models.Modifier.IDF
+                    )
+                },
+            )
+            self.sparse_configuration_created = True
+            return True
+        self._collection.ensure_collection()
+        collection = self.client.get_collection(self.collection_name)
+        sparse_vectors = collection.config.params.sparse_vectors or {}
+        if SPARSE_VECTOR_NAME not in sparse_vectors:
+            raise CollectionConfigurationError(
+                f"Collection requires sparse vector: {SPARSE_VECTOR_NAME}"
+            )
+        return False
 
     def index_document(
         self,
@@ -138,13 +163,28 @@ class LangChainQdrantIndexer:
         document_hash: str | None = None,
         index_fingerprint: str | None = None,
     ) -> IndexResult:
-        return index_document_with_langchain(
+        result = index_document_with_langchain(
             items,
             client=self.client,
             collection_name=self.collection_name,
             vector_size=self.vector_size,
             document_hash=document_hash,
             index_fingerprint=index_fingerprint,
+        )
+        self.update_sparse_vectors([item.chunk for item in items])
+        return result
+
+    def update_sparse_vectors(self, chunks: list[Chunk]) -> None:
+        self.client.update_vectors(
+            collection_name=self.collection_name,
+            points=[
+                models.PointVectors(
+                    id=str(uuid.uuid5(uuid.NAMESPACE_URL, chunk.metadata.chunk_id)),
+                    vector={SPARSE_VECTOR_NAME: encode_sparse(chunk.content)},
+                )
+                for chunk in chunks
+            ],
+            wait=True,
         )
 
     def delete_document(self, document_id: str) -> None:

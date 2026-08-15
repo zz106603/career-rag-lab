@@ -109,18 +109,18 @@ docker compose ps
 
 Qdrant REST API는 `http://localhost:6333`, gRPC API는 `localhost:6334`에서 사용할 수 있다. 데이터는 Docker의 `qdrant_storage` named volume에 유지된다. 애플리케이션은 `QDRANT_URL` 환경변수를 사용하며 기본값은 `http://localhost:6333`이다.
 
-학습 문서 전체를 실제 OpenAI Embedding으로 변환해 `career_documents_langchain`에 저장한다. 이 명령은 유료 OpenAI API를 호출한다.
+학습 문서 전체를 실제 OpenAI Embedding과 Sparse Vector로 변환해 `career_documents_hybrid`에 저장한다. 이 명령은 변경된 문서가 있을 때만 유료 OpenAI API를 호출한다.
 
 ```powershell
 python -m app.index_documents
 ```
 
-완료 후 `http://localhost:6333/dashboard`의 Collections 화면에서 `career_documents_langchain`을 선택하면 Point와 payload를 볼 수 있다. 각 Point의 `metadata`에는 원문의 `document_hash`와 색인 설정을 포함한 `index_fingerprint`가 저장된다.
+완료 후 `http://localhost:6333/dashboard`의 Collections 화면에서 `career_documents_hybrid`를 선택하면 Dense·`text-sparse` Vector와 payload를 볼 수 있다. 각 Point의 `metadata`에는 원문의 `document_hash`와 색인 설정을 포함한 `index_fingerprint`가 저장된다.
 
 같은 명령을 다시 실행하면 변경되지 않은 문서는 Chunking 결과 비교까지만 수행하고 OpenAI Embedding과 Qdrant 쓰기를 생략한다. 실행 결과에서 변경 상태를 확인할 수 있다.
 
 ```text
-collection=career_documents_langchain documents=6 chunks=28 added=0 updated=0 unchanged=6 deleted=0 embedded_chunks=0
+collection=career_documents_hybrid documents=6 chunks=28 added=0 updated=0 unchanged=6 deleted=0 embedded_chunks=0
 ```
 
 - `added`: 새로 발견되어 색인한 문서 수
@@ -136,7 +136,7 @@ REST API로 원문과 metadata를 확인하려면 다음 명령을 사용한다.
 ```powershell
 $body = @{ limit = 10; with_payload = $true; with_vector = $false } | ConvertTo-Json
 Invoke-RestMethod -Method Post `
-    -Uri "http://localhost:6333/collections/career_documents_langchain/points/scroll" `
+    -Uri "http://localhost:6333/collections/career_documents_hybrid/points/scroll" `
     -ContentType "application/json" `
     -Body $body
 ```
@@ -166,6 +166,23 @@ Invoke-RestMethod -Method Post `
 응답의 `results`에는 `content`, `source`, `score`, `metadata`만 포함된다.
 `top_k`는 최대 결과 개수이며 `score_threshold`를 높이면 유사도가 낮은 근거는
 제외된다. 검색 근거가 부족하면 `results`가 빈 배열이 될 수 있다.
+
+Embedding 없이 실제 단어가 포함된 Chunk만 보려면 Keyword Search를 호출한다.
+Keyword score는 Dense Cosine score와 다른 값이므로 직접 비교하거나 더하지 않는다.
+
+```powershell
+$body = @{
+    query = "Playwright를 어디에 사용했나요?"
+    top_k = 3
+} | ConvertTo-Json
+Invoke-RestMethod -Method Post `
+    -Uri "http://localhost:8000/search/keyword" `
+    -ContentType "application/json" `
+    -Body $body
+```
+
+Qdrant에 저장된 Sparse Vector로 검색하려면 `/search/sparse`를 사용한다. 요청 형식은
+Keyword Search와 같으며 Qdrant가 sparse score와 Top K를 계산한다.
 
 검색 결과를 근거로 자연어 답변을 생성하려면 `/answer`를 호출한다. 기본 생성
 모델은 비용을 최소화한 `gpt-5-nano`이며, 기준 score 이상의 상위 3개 Chunk만

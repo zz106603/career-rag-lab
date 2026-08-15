@@ -61,6 +61,12 @@ def index_documents(
     )
     indexer.ensure_collection()
     existing_states = indexer.list_indexed_documents()
+    if indexer.sparse_configuration_created and existing_states:
+        # 기존 Dense Point를 재Embedding하지 않고 현재 Chunk 내용으로 sparse
+        # vector만 한 번 backfill한다.
+        indexer.update_sparse_vectors(
+            [chunk for item in prepared_documents for chunk in item.chunks]
+        )
     current_ids = {item.document_id for item in prepared_documents}
     deleted_ids = sorted(set(existing_states) - current_ids)
 
