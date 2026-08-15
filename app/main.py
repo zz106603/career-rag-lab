@@ -11,7 +11,9 @@ from app.answers import (
 )
 from app.langchain_rag import LangChainRagService
 from app.langchain_retrieval import LangChainRetrievalService, SearchFilters
+from app.keyword_search import KeywordSearchService, create_keyword_search_service
 from app.pipeline import create_default_answer_service, create_default_search_service
+from app.sparse_search import SparseSearchService, create_sparse_search_service
 
 app = FastAPI(title="career-rag-lab")
 
@@ -35,6 +37,12 @@ class SearchRequest(BaseModel):
     query: str = Field(min_length=1)
     top_k: int = Field(default=5, ge=1, le=100)
     score_threshold: float | None = Field(default=None, ge=-1.0, le=1.0)
+    filters: SearchFilterRequest | None = None
+
+
+class KeywordSearchRequest(BaseModel):
+    query: str = Field(min_length=1)
+    top_k: int = Field(default=5, ge=1, le=100)
     filters: SearchFilterRequest | None = None
 
 
@@ -64,6 +72,14 @@ def get_search_service() -> LangChainRetrievalService:
 
 def get_answer_service() -> LangChainRagService:
     return create_default_answer_service()
+
+
+def get_keyword_search_service() -> KeywordSearchService:
+    return create_keyword_search_service()
+
+
+def get_sparse_search_service() -> SparseSearchService:
+    return create_sparse_search_service()
 
 
 @app.exception_handler(RetrievalPipelineError)
@@ -102,6 +118,42 @@ def search(
         request.query,
         top_k=request.top_k,
         score_threshold=request.score_threshold,
+        filters=request.filters.to_domain() if request.filters else None,
+    )
+    return SearchResponse(
+        query=request.query,
+        results=[asdict(result) for result in results],
+    )
+
+
+@app.post("/search/keyword", response_model=SearchResponse)
+def keyword_search(
+    request: KeywordSearchRequest,
+    service: Annotated[
+        KeywordSearchService, Depends(get_keyword_search_service)
+    ],
+) -> SearchResponse:
+    """Embedding 없이 실제 단어가 일치한 Chunk와 keyword score를 반환한다."""
+    results = service.search(
+        request.query,
+        top_k=request.top_k,
+        filters=request.filters.to_domain() if request.filters else None,
+    )
+    return SearchResponse(
+        query=request.query,
+        results=[asdict(result) for result in results],
+    )
+
+
+@app.post("/search/sparse", response_model=SearchResponse)
+def sparse_search(
+    request: KeywordSearchRequest,
+    service: Annotated[SparseSearchService, Depends(get_sparse_search_service)],
+) -> SearchResponse:
+    """Qdrant sparse vector 검색 결과와 score를 Dense 결과와 분리한다."""
+    results = service.search(
+        request.query,
+        top_k=request.top_k,
         filters=request.filters.to_domain() if request.filters else None,
     )
     return SearchResponse(

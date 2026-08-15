@@ -6,26 +6,28 @@ Phase 3 — 검색 품질 개선과 평가
 
 ## Current task
 
-P3-03 — Keyword 또는 Sparse Search
+P3-04 — Hybrid Retrieval
 
 ## Goal
 
-- Dense Search가 놓치는 정확한 기술명과 키워드 검색을 보완한다.
-- Sparse 또는 Keyword Search 후보를 관찰 가능하게 구현한다.
+- Dense Search와 Sparse Search 후보를 결합한다.
+- 한쪽 검색 방식의 약점을 다른 방식이 보완하는지 평가한다.
 
 ## In scope
 
-- Keyword 또는 Sparse Search 방식 선택
-- 정확한 기술명 질문의 검색 결과 비교
+- 후보 결합과 중복 제거
+- 결합 score 또는 순위 융합
+- 기존 기준선과 비교
 
 ## Out of scope
 
-- Dense·Sparse 결합과 reranking
+- reranking
 
 ## Completion criteria
 
-- 정확 키워드 검색 결과를 Dense 결과와 분리해 볼 수 있다.
-- 기존 평가 질문에서 차이를 기록한다.
+- Dense·Keyword 결과를 분리해서 계속 관찰할 수 있다.
+- Hybrid 결과가 결정적으로 재현된다.
+- 정확 키워드 질문의 변화가 기록된다.
 
 ## Completed
 
@@ -171,6 +173,18 @@ P3-03 — Keyword 또는 Sparse Search
   - `/search`와 `/answer`, LCEL Chain이 같은 filter를 Retriever까지 전달하도록 연결했다.
   - 실제 Docker Qdrant에서 무조건 검색의 프로젝트·프로필 2개가 `document_type=project` 조건 적용 후 프로젝트 1개로 제한되는 것을 확인했다.
   - filter 적용 시점과 결합 방식을 `docs/DECISIONS.md`의 D-020에 기록했다.
+- P3-03 Keyword Search
+  - 영문 기술명과 한글을 분리하는 tokenizer와 Chunk 단어 일치 기반 keyword score를 구현했다.
+  - `/search/keyword`에서 Dense Search와 분리된 content, source, score, matched terms를 반환한다.
+  - 기존 Metadata Filter를 Keyword Search에도 동일하게 적용했다.
+  - 정확 키워드 질문 3개를 추가 API 호출 없이 비교해 `data/evaluation/keyword-comparison.json`에 기록했다.
+  - Playwright와 Celery 질문은 기대 출처만 1위로 반환했고, RabbitMQ 질문은 기술 요약 문서가 1위·기대 프로젝트 문서가 2위였다.
+  - 학습용 lexical 기준선 선택과 한계를 `docs/DECISIONS.md`의 D-021에 기록했다.
+  - token SHA-256 index와 term frequency로 Sparse Vector를 만들고 Qdrant IDF modifier를 적용했다.
+  - 기존 Dense Point 28개를 재Embedding 없이 `career_documents_hybrid`로 복사하고 `text-sparse` vector를 추가했다.
+  - `/search/sparse`에서 Qdrant Sparse Search 결과를 Dense·Keyword 결과와 분리해 반환한다.
+  - 세 정확 키워드 질문에서 Sparse와 Keyword 순위가 같음을 확인했다: q04 기대 출처 2위, q05·q06 1위.
+  - Sparse Vector 방식을 `docs/DECISIONS.md`의 D-022에 기록했다.
 
 ## Verified
 
@@ -269,6 +283,14 @@ P3-03 — Keyword 또는 Sparse Search
 - `.venv\Scripts\python.exe -m pytest -q tests/test_langchain_retrieval.py tests/test_langchain_rag.py`: 15 passed
 - 전체 테스트는 121 passed, 11 skipped였고 Windows `WinError 10014`로 API 테스트 1개가 일시 실패했으며, 해당 테스트를 재실행해 1 passed를 확인했다.
 - Metadata Filter 데이터 흐름: API filter 입력 → `SearchFilters` → `metadata.*` exact-match AND 조건 → Qdrant 후보 제한 → 제한된 범위의 Cosine Top K → retrieval·답변
+- `.venv\Scripts\python.exe -m pytest -q tests/test_keyword_search.py tests/test_keyword_search_api.py tests/test_langchain_retrieval.py`: 12 passed, 1 warning
+- `.venv\Scripts\python.exe -m pytest -q`: 126 passed, 11 skipped, 1 warning
+- `.venv\Scripts\python.exe -m app.compare_keyword_search`: q04 기대 출처 2위, q05·q06 기대 출처 1위, 외부 API 호출 0회
+- `.venv\Scripts\python.exe -m app.migrate_hybrid_collection`: 기존 Dense Point 28개에 Sparse Vector 추가, Embedding 호출 0회
+- `.venv\Scripts\python.exe -m app.index_documents`: hybrid Collection의 문서 6개·Chunk 28개가 unchanged, Embedding 0개
+- `.venv\Scripts\python.exe -m pytest -q`: 129 passed, 11 skipped, 1 warning
+- Keyword Search 데이터 흐름: 질문 tokenize → Qdrant Chunk payload 조회 → metadata filter → Chunk tokenize·일치 단어 score → keyword 순위 → Dense 결과와 별도 비교
+- Sparse Search 데이터 흐름: 문서·질문 tokenize → 결정적 token hash·term frequency Sparse Vector → Qdrant IDF score → `text-sparse` Top K → Dense·Keyword와 별도 비교
 
 ## Learned
 
@@ -316,6 +338,9 @@ P3-03 — Keyword 또는 Sparse Search
 - Hit@K는 기대 출처 중 하나만 찾아도 성공하므로 다중 문서 질문의 전체 출처 누락을 드러내지 못하며 source recall을 함께 봐야 한다.
 - MRR 1.0은 정답 문서가 항상 첫 번째라는 뜻이지만 뒤 순위에 관련 없는 문서가 섞이지 않았다는 뜻은 아니다.
 - Metadata Filter는 의미 유사도를 개선하는 알고리즘이 아니라 검색 가능한 문서 범위를 먼저 줄이는 장치이므로, 올바른 조건을 알고 있는 질문에서만 사용해야 한다.
+- Keyword Search는 Playwright·Celery처럼 고유한 기술명을 정확히 찾지만 RabbitMQ처럼 여러 문서에 같은 단어가 있으면 일반 단어 일치와 반복 횟수 때문에 기대 프로젝트보다 기술 요약 문서가 앞설 수 있다.
+- Dense와 Keyword의 score는 의미와 범위가 다르므로 숫자를 직접 더하지 말고 다음 단계에서 순위 기반 결합을 검토해야 한다.
+- 현재 Sparse Search는 Keyword와 같은 token 정보를 사용하므로 세 정확 키워드 질문의 순위가 같았고, Qdrant로 후보 생성과 IDF 계산 위치가 이동한 것이 핵심 차이다.
 
 ## Problems
 
@@ -327,7 +352,7 @@ P3-03 — Keyword 또는 Sparse Search
 
 ## Next task
 
-P3-03 — Keyword 또는 Sparse Search
+P3-04 — Hybrid Retrieval
 
 ## Update rule
 
