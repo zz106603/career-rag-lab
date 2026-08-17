@@ -6,28 +6,28 @@ Phase 3 — 검색 품질 개선과 평가
 
 ## Current task
 
-P3-04 — Hybrid Retrieval
+P3-05 — Reranking
 
 ## Goal
 
-- Dense Search와 Sparse Search 후보를 결합한다.
-- 한쪽 검색 방식의 약점을 다른 방식이 보완하는지 평가한다.
+- Hybrid 초기 검색 후보에 reranker를 적용할 가치가 있는지 평가한다.
+- 검색과 reranking의 역할 및 적용 전후 순위를 구분한다.
 
 ## In scope
 
-- 후보 결합과 중복 제거
-- 결합 score 또는 순위 융합
-- 기존 기준선과 비교
+- reranker 후보와 비용 검토
+- 적용 전후 순위 기록
+- 작은 데이터에서 효과 대비 비용 평가
 
 ## Out of scope
 
-- reranking
+- Chunk 전략 변경
 
 ## Completion criteria
 
-- Dense·Keyword 결과를 분리해서 계속 관찰할 수 있다.
-- Hybrid 결과가 결정적으로 재현된다.
-- 정확 키워드 질문의 변화가 기록된다.
+- 검색 후보와 reranking 결과를 분리해 관찰할 수 있다.
+- 동일 입력의 순위가 결정적으로 재현된다.
+- 적용 전후 품질과 비용을 기록하거나, 효과가 불충분하면 보류 근거를 기록한다.
 
 ## Completed
 
@@ -185,6 +185,13 @@ P3-04 — Hybrid Retrieval
   - `/search/sparse`에서 Qdrant Sparse Search 결과를 Dense·Keyword 결과와 분리해 반환한다.
   - 세 정확 키워드 질문에서 Sparse와 Keyword 순위가 같음을 확인했다: q04 기대 출처 2위, q05·q06 1위.
   - Sparse Vector 방식을 `docs/DECISIONS.md`의 D-022에 기록했다.
+- P3-04 Hybrid Retrieval
+  - LangChain Dense Search와 Qdrant Sparse Search에서 각각 후보를 가져와 Chunk ID로 중복 제거했다.
+  - 서로 다른 원점수를 직접 더하지 않고 동일 가중치의 RRF(`k=60`)로 순위를 결합했다.
+  - `/search/hybrid`가 Dense·Sparse·Hybrid 목록과 각 후보의 원래 순위·score를 분리해 반환한다.
+  - 정확 키워드 질문 3개의 기존 실제 검색 순위를 재사용해 `data/evaluation/hybrid-comparison.json`에 비교 결과를 기록했다.
+  - q04는 Dense 1위·Sparse 2위·Hybrid 1위였고, q05·q06은 세 방식 모두 기대 출처가 1위였다.
+  - RRF 선택과 후보 수 결정을 `docs/DECISIONS.md`의 D-023에 기록했다.
 
 ## Verified
 
@@ -291,6 +298,9 @@ P3-04 — Hybrid Retrieval
 - `.venv\Scripts\python.exe -m pytest -q`: 129 passed, 11 skipped, 1 warning
 - Keyword Search 데이터 흐름: 질문 tokenize → Qdrant Chunk payload 조회 → metadata filter → Chunk tokenize·일치 단어 score → keyword 순위 → Dense 결과와 별도 비교
 - Sparse Search 데이터 흐름: 문서·질문 tokenize → 결정적 token hash·term frequency Sparse Vector → Qdrant IDF score → `text-sparse` Top K → Dense·Keyword와 별도 비교
+- `.venv\Scripts\python.exe -m app.evaluate_hybrid_search`: q04 Dense/Sparse/Hybrid 최초 기대 출처 순위 1/2/1, q05·q06 1/1/1, 외부 API 호출 0회
+- `.venv\Scripts\python.exe -m pytest`: 133 passed, 11 skipped, 1 warning
+- Hybrid Search 데이터 흐름: 같은 질문·filter → Dense와 Sparse 후보 각각 조회 → Chunk ID 중복 제거 → 검색별 순위를 RRF 점수로 변환·합산 → 결정적 정렬 → Dense·Sparse·Hybrid 목록을 함께 반환
 
 ## Learned
 
@@ -341,6 +351,8 @@ P3-04 — Hybrid Retrieval
 - Keyword Search는 Playwright·Celery처럼 고유한 기술명을 정확히 찾지만 RabbitMQ처럼 여러 문서에 같은 단어가 있으면 일반 단어 일치와 반복 횟수 때문에 기대 프로젝트보다 기술 요약 문서가 앞설 수 있다.
 - Dense와 Keyword의 score는 의미와 범위가 다르므로 숫자를 직접 더하지 말고 다음 단계에서 순위 기반 결합을 검토해야 한다.
 - 현재 Sparse Search는 Keyword와 같은 token 정보를 사용하므로 세 정확 키워드 질문의 순위가 같았고, Qdrant로 후보 생성과 IDF 계산 위치가 이동한 것이 핵심 차이다.
+- Dense Cosine score와 Sparse IDF score는 직접 비교할 수 없지만 RRF는 각 검색의 순위만 사용하므로 별도 score 정규화 없이 결합할 수 있다.
+- q04처럼 Sparse에서 기술 요약 문서가 앞서도 기대 프로젝트가 Dense와 Sparse 양쪽에 나타나면 두 순위의 기여가 합쳐져 Hybrid 1위가 될 수 있다.
 
 ## Problems
 
@@ -349,10 +361,11 @@ P3-04 — Hybrid Retrieval
 - 실제 영속 Collection의 검색 원문을 OpenAI 답변 생성으로 보내는 end-to-end 실행은 외부 데이터 전송 보안 검토에서 차단됐다. 합성 근거의 실제 OpenAI 호출과 실제 Qdrant 검색은 각각 독립적으로 검증했다.
 - 기존 영속 Collection의 학습 문서를 Hash payload 형식으로 갱신하는 실제 OpenAI 호출은 데이터 외부 전송 보안 검토에서 차단됐다. 임시 합성 문서와 실제 Qdrant를 사용한 증분 시나리오는 검증했다.
 - P3 기준선의 실제 API 재실행은 검색 문서 외부 전송 승인이 없어 중단했고, 이미 저장된 P2 실제 실행 결과를 비용 없이 재계산했다.
+- P3-04의 실제 질문 Embedding 재실행도 외부 전송 승인이 없어 중단했다. P3-03에 저장된 실제 Dense·Sparse source 순위를 재사용해 문서 단위 RRF를 평가했고, Chunk 단위 결합은 단위 테스트로 검증했다.
 
 ## Next task
 
-P3-04 — Hybrid Retrieval
+P3-05 — Reranking
 
 ## Update rule
 

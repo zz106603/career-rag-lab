@@ -184,6 +184,26 @@ Invoke-RestMethod -Method Post `
 Qdrant에 저장된 Sparse Vector로 검색하려면 `/search/sparse`를 사용한다. 요청 형식은
 Keyword Search와 같으며 Qdrant가 sparse score와 Top K를 계산한다.
 
+Dense 의미 검색과 Sparse 단어 검색을 결합한 결과는 `/search/hybrid`에서 확인한다.
+두 score의 단위가 다르므로 직접 더하지 않고 RRF(Reciprocal Rank Fusion)로 순위를
+합친다. `dense`, `sparse`, `hybrid`가 각각 반환되어 결합 전후를 따로 볼 수 있다.
+
+```powershell
+$body = @{
+    query = "RabbitMQ를 사용한 프로젝트와 처리 방식을 알려주세요."
+    top_k = 3
+    candidate_k = 6
+} | ConvertTo-Json
+Invoke-RestMethod -Method Post `
+    -Uri "http://localhost:8000/search/hybrid" `
+    -ContentType "application/json" `
+    -Body $body
+```
+
+`candidate_k`는 각 검색 방식에서 결합 전에 가져올 후보 수이며 `top_k` 이상이어야
+한다. 생략하면 `max(top_k * 2, 5)`를 사용한다. Hybrid 결과의 metadata에는 원래
+`dense_rank`, `sparse_rank`, `dense_score`, `sparse_score`가 남는다.
+
 검색 결과를 근거로 자연어 답변을 생성하려면 `/answer`를 호출한다. 기본 생성
 모델은 비용을 최소화한 `gpt-5-nano`이며, 기준 score 이상의 상위 3개 Chunk만
 Context로 전달한다.

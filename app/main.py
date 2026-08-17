@@ -9,6 +9,7 @@ from app.answers import (
     AnswerGenerationError,
     RetrievalPipelineError,
 )
+from app.hybrid_search import HybridSearchService, create_hybrid_search_service
 from app.langchain_rag import LangChainRagService
 from app.langchain_retrieval import LangChainRetrievalService, SearchFilters
 from app.keyword_search import KeywordSearchService, create_keyword_search_service
@@ -46,9 +47,23 @@ class KeywordSearchRequest(BaseModel):
     filters: SearchFilterRequest | None = None
 
 
+class HybridSearchRequest(BaseModel):
+    query: str = Field(min_length=1)
+    top_k: int = Field(default=5, ge=1, le=100)
+    candidate_k: int | None = Field(default=None, ge=1, le=200)
+    filters: SearchFilterRequest | None = None
+
+
 class SearchResponse(BaseModel):
     query: str
     results: list[dict[str, Any]]
+
+
+class HybridSearchResponse(BaseModel):
+    query: str
+    dense: list[dict[str, Any]]
+    sparse: list[dict[str, Any]]
+    hybrid: list[dict[str, Any]]
 
 
 class AnswerRequest(BaseModel):
@@ -80,6 +95,10 @@ def get_keyword_search_service() -> KeywordSearchService:
 
 def get_sparse_search_service() -> SparseSearchService:
     return create_sparse_search_service()
+
+
+def get_hybrid_search_service() -> HybridSearchService:
+    return create_hybrid_search_service()
 
 
 @app.exception_handler(RetrievalPipelineError)
@@ -159,6 +178,26 @@ def sparse_search(
     return SearchResponse(
         query=request.query,
         results=[asdict(result) for result in results],
+    )
+
+
+@app.post("/search/hybrid", response_model=HybridSearchResponse)
+def hybrid_search(
+    request: HybridSearchRequest,
+    service: Annotated[HybridSearchService, Depends(get_hybrid_search_service)],
+) -> HybridSearchResponse:
+    """Dense·Sparse 원본 후보와 RRF 결합 결과를 함께 반환한다."""
+    result = service.search(
+        request.query,
+        top_k=request.top_k,
+        candidate_k=request.candidate_k,
+        filters=request.filters.to_domain() if request.filters else None,
+    )
+    return HybridSearchResponse(
+        query=request.query,
+        dense=[asdict(item) for item in result.dense],
+        sparse=[asdict(item) for item in result.sparse],
+        hybrid=[asdict(item) for item in result.hybrid],
     )
 
 
