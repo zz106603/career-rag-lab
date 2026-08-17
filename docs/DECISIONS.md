@@ -446,3 +446,20 @@
 - 장점: 외부 API 비용 없이 질문 유형별 Hit@3·MRR·source recall과 예상 Embedding 입력량을 비교할 수 있다.
 - 단점: 의미 유사도와 긴 Chunk의 Dense 표현 희석을 측정하지 못하므로 이 결과만으로 기본 Chunk 전략을 확정할 수 없다.
 - 재검토 조건: P3-07 최종 평가에서 실제 Dense·Hybrid 전략별 재색인 승인을 받거나 검색 품질 차이를 확인해야 할 때
+
+---
+
+## D-026. 최종 추천은 구조 기반 Chunk와 RRF Hybrid를 사용하되 기존 생성 방어를 유지한다
+
+- 날짜: 2026-08-17
+- 상태: 확정
+- 관련 Phase: Phase 3
+- 문제: Phase 3 실험 결과를 실제 애플리케이션에 옮길 최종 Chunk·검색·생성 정책으로 정리해야 한다.
+- 선택지:
+  - lexical proxy가 가장 높았던 큰 Chunk로 즉시 재색인
+  - 현재 구조 기반 Chunk를 유지하고 Dense·Sparse RRF만 후보 검색에 적용
+- 결정: 구조 기반 최대 500자 Chunk를 유지하고, 후보 검색은 Dense와 Sparse를 `k=60`, 후보 6개, 최종 3개의 RRF로 결합한다. metadata filter는 명시적 조건이 있을 때만 검색 전에 적용하고 reranker는 보류하며, threshold 미달 시 생성하지 않는 기존 방어를 유지한다.
+- 이유: 큰 Chunk의 우위는 lexical proxy에서만 확인되어 Dense 품질을 보장하지 못한다. Hybrid는 전체 집계 지표를 악화시키지 않으면서 정확 키워드 신호를 보존했고 현재 색인을 그대로 사용할 수 있다.
+- 장점: 재Embedding 없이 검색 신호를 보완하고 Dense·Sparse·Hybrid 근거를 계속 분리 관찰하며 근거 없는 생성을 차단한다.
+- 단점: q10·q11 다중 문서 질문의 일부 기대 출처 누락은 남고, 현재 `/answer` 기본 경로에 Hybrid를 연결하는 적용 작업과 threshold 재조정은 별도로 필요하다.
+- 재검토 조건: 실제 Dense Chunk 전략 비교 결과가 생기거나 문서 규모·질문 분포가 바뀌거나 Hybrid를 답변 경로에 연결할 때

@@ -2,32 +2,32 @@
 
 ## Current phase
 
-Phase 3 — 검색 품질 개선과 평가
+Phase 3 완료 — 종료 정리
 
 ## Current task
 
-P3-07 — 최종 평가
+FINAL-01 — 최종 리뷰 문서 작성
 
 ## Goal
 
-- 모든 평가 질문을 개선된 검색 경로로 다시 평가한다.
-- 기준선과 비교해 최종 추천 검색 설정을 결정한다.
+- 전체 학습 결과를 `docs/FINAL_REVIEW.md`로 정리한다.
+- Java 이식 전 데이터 흐름, 선택 이유, 한계와 이식 범위를 설명한다.
 
 ## In scope
 
-- 개선·악화·변화 없는 질문 분류
-- 실패 원인과 최종 추천 설정 기록
-- career-fit-ai 적용 검색 전략 정리
+- 직접 구현한 RAG 데이터 흐름과 LangChain 적용 전후 비교
+- 최종 Chunk·검색 전략과 평가 결과
+- 운영 고려사항, 이식 구성요소와 Java 재설계 범위
 
 ## Out of scope
 
-- 새로운 검색 기능 추가
+- 신규 기능 구현
 
 ## Completion criteria
 
-- 전체 질문의 최종 지표가 기준선과 비교된다.
-- 질문별 변화와 실패 원인이 기록된다.
-- 최종 추천 설정과 적용 범위가 기록된다.
+- 학습 계획의 종료 산출물 10개 항목이 모두 포함된다.
+- 구현된 내용과 미구현·한계가 구분된다.
+- 평가 수치와 설계 결정의 출처가 연결된다.
 
 ## Completed
 
@@ -207,6 +207,14 @@ P3-07 — 최종 평가
   - 큰 Chunk가 lexical proxy에서는 가장 높았지만 Dense 의미 표현 희석을 측정하지 못하므로 기본 전략은 확정하지 않았다.
   - 질문별 결과와 비용 지표를 `data/evaluation/chunk-strategy-comparison.json`에 기록했다.
   - 비용 없는 proxy 비교 범위를 `docs/DECISIONS.md`의 D-025에 기록했다.
+- P3-07 최종 평가
+  - 15개 전체 질문에서 저장된 실제 Dense 기준선과 현재 Qdrant Sparse 검색을 source 단위 RRF로 결합했다.
+  - 답변 가능 12개 기준 Dense와 Hybrid 모두 Hit@3 1.000, MRR 1.000, source recall 0.917이었다.
+  - 개선 0개·악화 0개·변화 없음 12개였고, 답변 불가 3개는 검색 정답이 없어 순위 변화에서 제외했다.
+  - q10의 출처 1개와 q11의 출처 2개가 Top 3에서 누락되는 다중 문서 recall 실패가 남았다.
+  - 구조 기반 500자, Dense+Sparse RRF(k=60), candidate 6·최종 3, 명시적 metadata filter, reranker 보류, 생성 전 근거 판정을 최종 추천했다.
+  - 질문별 변화·실패·추천 설정을 `data/evaluation/final-search-evaluation.json`에 기록했다.
+  - 최종 검색 정책을 `docs/DECISIONS.md`의 D-026에 기록했다.
 
 ## Verified
 
@@ -324,6 +332,10 @@ P3-07 — 최종 평가
 - `.venv\Scripts\python.exe -m pytest tests/test_evaluate_chunk_strategies.py`: 3 passed
 - `.venv\Scripts\python.exe -m pytest`: 139 passed, 11 skipped, 1 warning
 - Chunk 비교 데이터 흐름: 학습 문서 6개 → 전략별 분할 → 같은 tokenizer·lexical score → 질문별 Top 3 Chunk·출처 중복 제거 → 전체·category 지표와 Chunk 수·입력 문자량 JSON 기록
+- `.venv\Scripts\python.exe -m pytest tests/test_evaluate_final_search.py`: 2 passed
+- `.venv\Scripts\python.exe -m app.evaluate_final_search`: Dense/Hybrid Hit@3 1.000/1.000, MRR 1.000/1.000, source recall 0.917/0.917, 외부 API 호출 0회
+- `.venv\Scripts\python.exe -m pytest`: 141 passed, 11 skipped, 1 warning
+- 최종 평가 데이터 흐름: 저장된 실제 Dense source 순위 + 로컬 Qdrant Sparse source 순위 → source RRF → 답변 가능 질문의 순위·recall 비교 → 질문별 변화·실패와 추천 설정 JSON 기록
 
 ## Learned
 
@@ -381,6 +393,9 @@ P3-07 — 최종 평가
 - 작은 Chunk는 답이 여러 경계로 흩어질 수 있고 같은 문서의 여러 Chunk가 Top K를 차지해 다중 문서 source recall이 낮아질 수 있다.
 - 큰 Chunk는 이번 lexical proxy에서 문서 문맥을 함께 보존해 가장 높은 지표를 냈지만, 실제 Dense Embedding에서는 여러 주제가 한 벡터에 섞이는 희석 효과를 별도로 검증해야 한다.
 - 구조 기반 Chunk는 제목 경계를 보존하고 overlap 중복 입력이 없다는 장점이 있지만 짧은 section이 많아 Chunk 수가 가장 많았다.
+- Hybrid는 정확 키워드 후보를 보완하는 구조적 안전망이지만, 현재 평가 집합에서는 Dense가 이미 기대 출처 1위여서 전체 MRR·recall 수치를 높이지 않았다.
+- 전체 baseline JSON의 기존 mean source recall 0.933은 답변 불가 질문의 recall 1.0도 포함한다. 검색 정답이 정의된 답변 가능 12개만 공정하게 비교하면 Dense와 Hybrid 모두 0.917이다.
+- 다중 문서 질문은 하나의 정답만 찾는 Hit@3·MRR이 1.0이어도 기대 출처 전체를 놓칠 수 있으므로 source recall을 반드시 함께 봐야 한다.
 
 ## Problems
 
@@ -390,10 +405,11 @@ P3-07 — 최종 평가
 - 기존 영속 Collection의 학습 문서를 Hash payload 형식으로 갱신하는 실제 OpenAI 호출은 데이터 외부 전송 보안 검토에서 차단됐다. 임시 합성 문서와 실제 Qdrant를 사용한 증분 시나리오는 검증했다.
 - P3 기준선의 실제 API 재실행은 검색 문서 외부 전송 승인이 없어 중단했고, 이미 저장된 P2 실제 실행 결과를 비용 없이 재계산했다.
 - P3-04의 실제 질문 Embedding 재실행도 외부 전송 승인이 없어 중단했다. P3-03에 저장된 실제 Dense·Sparse source 순위를 재사용해 문서 단위 RRF를 평가했고, Chunk 단위 결합은 단위 테스트로 검증했다.
+- P3-07은 질문 Embedding과 답변 생성을 재호출하지 않아 생성 품질 지표를 다시 계산하지 않았다. 저장된 Dense 실제 결과와 로컬 Sparse 검색으로 검색 변화만 평가했다.
 
 ## Next task
 
-P3-07 — 최종 평가
+FINAL-01 — `docs/FINAL_REVIEW.md` 작성
 
 ## Update rule
 
