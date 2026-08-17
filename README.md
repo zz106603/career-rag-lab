@@ -204,6 +204,15 @@ Invoke-RestMethod -Method Post `
 한다. 생략하면 `max(top_k * 2, 5)`를 사용한다. Hybrid 결과의 metadata에는 원래
 `dense_rank`, `sparse_rank`, `dense_score`, `sparse_score`가 남는다.
 
+현재 데이터에서 reranker 도입 필요성을 다시 계산하려면 다음 명령을 실행한다.
+
+```powershell
+python -m app.assess_reranking
+```
+
+결과는 `data/evaluation/reranking-assessment.json`에 저장된다. 현재는 기대 출처가
+이미 모두 1위라 외부 호출과 새 모델 의존성을 추가하지 않고 도입을 보류했다.
+
 검색 결과를 근거로 자연어 답변을 생성하려면 `/answer`를 호출한다. 기본 생성
 모델은 비용을 최소화한 `gpt-5-nano`이며, 기준 score 이상의 상위 3개 Chunk만
 Context로 전달한다.
