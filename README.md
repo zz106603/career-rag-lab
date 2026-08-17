@@ -1,5 +1,8 @@
 # career-rag-lab
 
+전체 구현 흐름, 최종 설정, 평가 결과와 Java 이식 범위는
+[`docs/FINAL_REVIEW.md`](docs/FINAL_REVIEW.md)에 정리되어 있다.
+
 기존 취업 관련 샘플 문서를 사용해 RAG의 수집, Chunking, Embedding,
 Vector Search, 생성, 평가 과정을 학습하는 프로젝트다.
 

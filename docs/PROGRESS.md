@@ -2,32 +2,28 @@
 
 ## Current phase
 
-Phase 3 완료 — 종료 정리
+학습 계획 완료
 
 ## Current task
 
-FINAL-01 — 최종 리뷰 문서 작성
+완료 — 진행 중인 작업 없음
 
 ## Goal
 
-- 전체 학습 결과를 `docs/FINAL_REVIEW.md`로 정리한다.
-- Java 이식 전 데이터 흐름, 선택 이유, 한계와 이식 범위를 설명한다.
+- Phase 0~3과 종료 산출물이 모두 완료됐다.
+- 다음 변경은 별도 목표와 완료 조건을 정의한 뒤 시작한다.
 
 ## In scope
 
-- 직접 구현한 RAG 데이터 흐름과 LangChain 적용 전후 비교
-- 최종 Chunk·검색 전략과 평가 결과
-- 운영 고려사항, 이식 구성요소와 Java 재설계 범위
+- 없음
 
 ## Out of scope
 
-- 신규 기능 구현
+- 새로운 작업 전체
 
 ## Completion criteria
 
-- 학습 계획의 종료 산출물 10개 항목이 모두 포함된다.
-- 구현된 내용과 미구현·한계가 구분된다.
-- 평가 수치와 설계 결정의 출처가 연결된다.
+- `docs/FINAL_REVIEW.md`를 기준으로 Java 이식 전 검토가 가능하다.
 
 ## Completed
 
@@ -215,6 +211,11 @@ FINAL-01 — 최종 리뷰 문서 작성
   - 구조 기반 500자, Dense+Sparse RRF(k=60), candidate 6·최종 3, 명시적 metadata filter, reranker 보류, 생성 전 근거 판정을 최종 추천했다.
   - 질문별 변화·실패·추천 설정을 `data/evaluation/final-search-evaluation.json`에 기록했다.
   - 최종 검색 정책을 `docs/DECISIONS.md`의 D-026에 기록했다.
+- FINAL-01 최종 리뷰 문서
+  - 직접 구현한 RAG 흐름부터 현재 한계까지 종료 산출물 10개 항목을 `docs/FINAL_REVIEW.md`에 정리했다.
+  - LangChain 적용은 품질 자동 개선이 아니라 추상화 교체였음을 수동 구현과 비교했다.
+  - `/search/hybrid`는 구현됐지만 `/answer` 기본 경로에는 아직 연결되지 않았다는 미구현 경계를 명시했다.
+  - 운영 고려사항, career-fit-ai 이식 계약과 Java 재설계 범위를 기록했다.
 
 ## Verified
 
@@ -336,6 +337,8 @@ FINAL-01 — 최종 리뷰 문서 작성
 - `.venv\Scripts\python.exe -m app.evaluate_final_search`: Dense/Hybrid Hit@3 1.000/1.000, MRR 1.000/1.000, source recall 0.917/0.917, 외부 API 호출 0회
 - `.venv\Scripts\python.exe -m pytest`: 141 passed, 11 skipped, 1 warning
 - 최종 평가 데이터 흐름: 저장된 실제 Dense source 순위 + 로컬 Qdrant Sparse source 순위 → source RRF → 답변 가능 질문의 순위·recall 비교 → 질문별 변화·실패와 추천 설정 JSON 기록
+- `.venv\Scripts\python.exe -m pytest tests/test_final_review.py`: 최종 리뷰 10개 항목, 평가 수치와 미구현 경계 검증
+- `.venv\Scripts\python.exe -m pytest`: 143 passed, 11 skipped, 1 warning
 
 ## Learned
 
@@ -409,7 +412,7 @@ FINAL-01 — 최종 리뷰 문서 작성
 
 ## Next task
 
-FINAL-01 — `docs/FINAL_REVIEW.md` 작성
+없음 — 학습 계획 완료
 
 ## Update rule
 
