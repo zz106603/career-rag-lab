@@ -429,3 +429,20 @@
 - 장점: 외부 문서 전송, 요청 비용, 모델 다운로드와 추론 지연, 새 의존성을 추가하지 않는다.
 - 단점: 뒤 순위의 관련 없는 Chunk를 줄일 가능성은 아직 평가하지 못하고, 문서가 늘어나면 현재 판단이 유효하지 않을 수 있다.
 - 재검토 조건: 기대 출처가 1위가 아닌 Hybrid 사례가 생기거나, Chunk 단위 relevance 정답을 마련하거나, 관련 없는 후보가 답변 품질을 낮출 때
+
+---
+
+## D-025. Chunk 전략은 먼저 동일 lexical proxy로 경계와 색인량을 비교한다
+
+- 날짜: 2026-08-17
+- 상태: 확정
+- 관련 Phase: Phase 3
+- 문제: 작은·큰·구조 기반 Chunk를 비교하려면 각 전략의 모든 Chunk를 다시 Embedding해야 하며 비용과 외부 전송이 발생한다.
+- 선택지:
+  - 세 Collection을 실제로 다시 Embedding해 Dense·Hybrid 검색 비교
+  - 같은 tokenizer와 lexical score로 경계 영향만 먼저 오프라인 비교
+- 결정: LangChain 200자/20자 overlap, LangChain 800자/80자 overlap, Markdown 구조 기반 최대 500자를 같은 12개 답변 가능 질문과 lexical Top 3로 비교한다. 결과는 최종 전략 선정이 아닌 proxy 평가로 명시한다.
+- 이유: API 호출과 벡터 변동 없이 분할 경계가 단어 일치 검색, Chunk 수, 중복 문자량에 미치는 영향을 먼저 재현해야 한다.
+- 장점: 외부 API 비용 없이 질문 유형별 Hit@3·MRR·source recall과 예상 Embedding 입력량을 비교할 수 있다.
+- 단점: 의미 유사도와 긴 Chunk의 Dense 표현 희석을 측정하지 못하므로 이 결과만으로 기본 Chunk 전략을 확정할 수 없다.
+- 재검토 조건: P3-07 최종 평가에서 실제 Dense·Hybrid 전략별 재색인 승인을 받거나 검색 품질 차이를 확인해야 할 때

@@ -213,6 +213,17 @@ python -m app.assess_reranking
 결과는 `data/evaluation/reranking-assessment.json`에 저장된다. 현재는 기대 출처가
 이미 모두 1위라 외부 호출과 새 모델 의존성을 추가하지 않고 도입을 보류했다.
 
+작은 Chunk(200/20), 큰 Chunk(800/80), Markdown 구조 기반 Chunk(최대 500)의
+경계 영향을 비용 없이 비교하려면 다음 명령을 실행한다.
+
+```powershell
+python -m app.evaluate_chunk_strategies
+```
+
+이 비교는 재Embedding하지 않고 동일한 lexical 검색을 사용하는 proxy 평가다.
+따라서 Chunk 개수·중복 입력량과 경계 차이를 비교할 수 있지만 Dense 검색의 최종
+기본 전략을 확정하는 결과로 사용하지 않는다.
+
 검색 결과를 근거로 자연어 답변을 생성하려면 `/answer`를 호출한다. 기본 생성
 모델은 비용을 최소화한 `gpt-5-nano`이며, 기준 score 이상의 상위 3개 Chunk만
 Context로 전달한다.
