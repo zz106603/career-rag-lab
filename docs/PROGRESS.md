@@ -6,28 +6,28 @@ Phase 3 — 검색 품질 개선과 평가
 
 ## Current task
 
-P3-05 — Reranking
+P3-06 — Chunk 전략 비교
 
 ## Goal
 
-- Hybrid 초기 검색 후보에 reranker를 적용할 가치가 있는지 평가한다.
-- 검색과 reranking의 역할 및 적용 전후 순위를 구분한다.
+- 작은 Chunk, 큰 Chunk, 구조 기반 Chunk를 같은 질문 세트로 비교한다.
+- 질문 유형별로 유리한 Chunk 전략과 이유를 기록한다.
 
 ## In scope
 
-- reranker 후보와 비용 검토
-- 적용 전후 순위 기록
-- 작은 데이터에서 효과 대비 비용 평가
+- 최소 세 Chunk 구성 비교
+- 전략별 검색 지표 기록
+- 질문 유형별 결과 분석
 
 ## Out of scope
 
-- Chunk 전략 변경
+- 최종 검색 설정 확정
 
 ## Completion criteria
 
-- 검색 후보와 reranking 결과를 분리해 관찰할 수 있다.
-- 동일 입력의 순위가 결정적으로 재현된다.
-- 적용 전후 품질과 비용을 기록하거나, 효과가 불충분하면 보류 근거를 기록한다.
+- 세 Chunk 구성이 같은 조건에서 비교된다.
+- 질문 유형별 차이가 기록된다.
+- 비용과 색인 영향이 함께 기록된다.
 
 ## Completed
 
@@ -192,6 +192,13 @@ P3-05 — Reranking
   - 정확 키워드 질문 3개의 기존 실제 검색 순위를 재사용해 `data/evaluation/hybrid-comparison.json`에 비교 결과를 기록했다.
   - q04는 Dense 1위·Sparse 2위·Hybrid 1위였고, q05·q06은 세 방식 모두 기대 출처가 1위였다.
   - RRF 선택과 후보 수 결정을 `docs/DECISIONS.md`의 D-023에 기록했다.
+- P3-05 Reranking
+  - 기준선과 Hybrid의 최초 기대 출처 순위를 이용해 reranker의 개선 가능 폭을 재현 가능하게 계산했다.
+  - 기준선 MRR 1.0, 정확 키워드 Hybrid MRR 1.0, 개선 가능 폭 0.0을 확인했다.
+  - 외부 cross-encoder, 로컬 cross-encoder, lexical heuristic의 비용과 한계를 비교했다.
+  - 현재는 정답 순위가 이미 상한이고 Chunk 단위 relevance 정답이 없어 reranker 도입을 보류했다.
+  - 적용 전 순위, 보류 사유와 재검토 조건을 `data/evaluation/reranking-assessment.json`에 기록했다.
+  - 보류 결정을 `docs/DECISIONS.md`의 D-024에 기록했다.
 
 ## Verified
 
@@ -301,6 +308,10 @@ P3-05 — Reranking
 - `.venv\Scripts\python.exe -m app.evaluate_hybrid_search`: q04 Dense/Sparse/Hybrid 최초 기대 출처 순위 1/2/1, q05·q06 1/1/1, 외부 API 호출 0회
 - `.venv\Scripts\python.exe -m pytest`: 133 passed, 11 skipped, 1 warning
 - Hybrid Search 데이터 흐름: 같은 질문·filter → Dense와 Sparse 후보 각각 조회 → Chunk ID 중복 제거 → 검색별 순위를 RRF 점수로 변환·합산 → 결정적 정렬 → Dense·Sparse·Hybrid 목록을 함께 반환
+- `.venv\Scripts\python.exe -m app.assess_reranking`: decision=defer, 기준선 MRR 1.000, Hybrid 정확 키워드 MRR 1.000, 개선 가능 폭 0.000, 외부 API 호출 0회
+- `.venv\Scripts\python.exe -m pytest tests/test_assess_reranking.py`: 3 passed
+- `.venv\Scripts\python.exe -m pytest`: 136 passed, 11 skipped, 1 warning
+- Reranking 판단 데이터 흐름: 저장된 기준선 MRR·Hybrid 질문별 최초 기대 출처 순위 → Hybrid MRR·상한까지의 개선 폭 계산 → 후보 비용과 함께 도입·보류 결정 JSON 생성
 
 ## Learned
 
@@ -353,6 +364,8 @@ P3-05 — Reranking
 - 현재 Sparse Search는 Keyword와 같은 token 정보를 사용하므로 세 정확 키워드 질문의 순위가 같았고, Qdrant로 후보 생성과 IDF 계산 위치가 이동한 것이 핵심 차이다.
 - Dense Cosine score와 Sparse IDF score는 직접 비교할 수 없지만 RRF는 각 검색의 순위만 사용하므로 별도 score 정규화 없이 결합할 수 있다.
 - q04처럼 Sparse에서 기술 요약 문서가 앞서도 기대 프로젝트가 Dense와 Sparse 양쪽에 나타나면 두 순위의 기여가 합쳐져 Hybrid 1위가 될 수 있다.
+- reranker는 초기 검색 후보를 새로 찾는 검색기가 아니라 이미 찾은 후보의 관련성을 다시 판단해 순서만 바꾸므로, 정답이 후보에 없으면 복구할 수 없다.
+- MRR이 이미 1.0이면 최초 정답 순위를 개선할 수 없으며, 뒤 순위 precision을 평가하려면 문서명이 아닌 Chunk 단위 relevance 정답이 필요하다.
 
 ## Problems
 
@@ -365,7 +378,7 @@ P3-05 — Reranking
 
 ## Next task
 
-P3-05 — Reranking
+P3-06 — Chunk 전략 비교
 
 ## Update rule
 
