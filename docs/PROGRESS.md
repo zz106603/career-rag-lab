@@ -6,28 +6,28 @@ Phase 3 — 검색 품질 개선과 평가
 
 ## Current task
 
-P3-06 — Chunk 전략 비교
+P3-07 — 최종 평가
 
 ## Goal
 
-- 작은 Chunk, 큰 Chunk, 구조 기반 Chunk를 같은 질문 세트로 비교한다.
-- 질문 유형별로 유리한 Chunk 전략과 이유를 기록한다.
+- 모든 평가 질문을 개선된 검색 경로로 다시 평가한다.
+- 기준선과 비교해 최종 추천 검색 설정을 결정한다.
 
 ## In scope
 
-- 최소 세 Chunk 구성 비교
-- 전략별 검색 지표 기록
-- 질문 유형별 결과 분석
+- 개선·악화·변화 없는 질문 분류
+- 실패 원인과 최종 추천 설정 기록
+- career-fit-ai 적용 검색 전략 정리
 
 ## Out of scope
 
-- 최종 검색 설정 확정
+- 새로운 검색 기능 추가
 
 ## Completion criteria
 
-- 세 Chunk 구성이 같은 조건에서 비교된다.
-- 질문 유형별 차이가 기록된다.
-- 비용과 색인 영향이 함께 기록된다.
+- 전체 질문의 최종 지표가 기준선과 비교된다.
+- 질문별 변화와 실패 원인이 기록된다.
+- 최종 추천 설정과 적용 범위가 기록된다.
 
 ## Completed
 
@@ -199,6 +199,14 @@ P3-06 — Chunk 전략 비교
   - 현재는 정답 순위가 이미 상한이고 Chunk 단위 relevance 정답이 없어 reranker 도입을 보류했다.
   - 적용 전 순위, 보류 사유와 재검토 조건을 `data/evaluation/reranking-assessment.json`에 기록했다.
   - 보류 결정을 `docs/DECISIONS.md`의 D-024에 기록했다.
+- P3-06 Chunk 전략 비교
+  - 작은 LangChain Recursive(200/20), 큰 LangChain Recursive(800/80), Markdown 구조 기반(최대 500) 세 구성을 정의했다.
+  - 12개 답변 가능 질문을 동일한 lexical Top 3 조건으로 평가해 Hit@3, MRR, source recall을 전체·질문 유형별로 기록했다.
+  - 작은/큰/구조 기반의 전체 결과는 각각 Hit@3 0.917/1.000/1.000, MRR 0.792/0.861/0.819, source recall 0.819/0.875/0.847이었다.
+  - Chunk 수는 24/6/28개였고 overlap을 포함한 상대 입력 문자량은 1.042/1.000/1.000이었다.
+  - 큰 Chunk가 lexical proxy에서는 가장 높았지만 Dense 의미 표현 희석을 측정하지 못하므로 기본 전략은 확정하지 않았다.
+  - 질문별 결과와 비용 지표를 `data/evaluation/chunk-strategy-comparison.json`에 기록했다.
+  - 비용 없는 proxy 비교 범위를 `docs/DECISIONS.md`의 D-025에 기록했다.
 
 ## Verified
 
@@ -312,6 +320,10 @@ P3-06 — Chunk 전략 비교
 - `.venv\Scripts\python.exe -m pytest tests/test_assess_reranking.py`: 3 passed
 - `.venv\Scripts\python.exe -m pytest`: 136 passed, 11 skipped, 1 warning
 - Reranking 판단 데이터 흐름: 저장된 기준선 MRR·Hybrid 질문별 최초 기대 출처 순위 → Hybrid MRR·상한까지의 개선 폭 계산 → 후보 비용과 함께 도입·보류 결정 JSON 생성
+- `.venv\Scripts\python.exe -m app.evaluate_chunk_strategies`: 작은/큰/구조 기반 Hit@3 0.917/1.000/1.000, MRR 0.792/0.861/0.819, 외부 API 호출 0회
+- `.venv\Scripts\python.exe -m pytest tests/test_evaluate_chunk_strategies.py`: 3 passed
+- `.venv\Scripts\python.exe -m pytest`: 139 passed, 11 skipped, 1 warning
+- Chunk 비교 데이터 흐름: 학습 문서 6개 → 전략별 분할 → 같은 tokenizer·lexical score → 질문별 Top 3 Chunk·출처 중복 제거 → 전체·category 지표와 Chunk 수·입력 문자량 JSON 기록
 
 ## Learned
 
@@ -366,6 +378,9 @@ P3-06 — Chunk 전략 비교
 - q04처럼 Sparse에서 기술 요약 문서가 앞서도 기대 프로젝트가 Dense와 Sparse 양쪽에 나타나면 두 순위의 기여가 합쳐져 Hybrid 1위가 될 수 있다.
 - reranker는 초기 검색 후보를 새로 찾는 검색기가 아니라 이미 찾은 후보의 관련성을 다시 판단해 순서만 바꾸므로, 정답이 후보에 없으면 복구할 수 없다.
 - MRR이 이미 1.0이면 최초 정답 순위를 개선할 수 없으며, 뒤 순위 precision을 평가하려면 문서명이 아닌 Chunk 단위 relevance 정답이 필요하다.
+- 작은 Chunk는 답이 여러 경계로 흩어질 수 있고 같은 문서의 여러 Chunk가 Top K를 차지해 다중 문서 source recall이 낮아질 수 있다.
+- 큰 Chunk는 이번 lexical proxy에서 문서 문맥을 함께 보존해 가장 높은 지표를 냈지만, 실제 Dense Embedding에서는 여러 주제가 한 벡터에 섞이는 희석 효과를 별도로 검증해야 한다.
+- 구조 기반 Chunk는 제목 경계를 보존하고 overlap 중복 입력이 없다는 장점이 있지만 짧은 section이 많아 Chunk 수가 가장 많았다.
 
 ## Problems
 
@@ -378,7 +393,7 @@ P3-06 — Chunk 전략 비교
 
 ## Next task
 
-P3-06 — Chunk 전략 비교
+P3-07 — 최종 평가
 
 ## Update rule
 
