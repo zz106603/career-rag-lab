@@ -1,0 +1,559 @@
+{
+  "evaluation_mode": "recorded_actual_dense_plus_live_local_sparse_source_rrf",
+  "scope": "all_evaluation_questions",
+  "fusion": {
+    "method": "rrf",
+    "k": 60,
+    "top_k": 3
+  },
+  "embedding_calls": 0,
+  "generation_calls": 0,
+  "baseline": {
+    "question_count": 12,
+    "hit_at_3": 1.0,
+    "mrr": 1.0,
+    "mean_source_recall": 0.9166666666666666
+  },
+  "hybrid": {
+    "question_count": 12,
+    "hit_at_3": 1.0,
+    "mrr": 1.0,
+    "mean_source_recall": 0.9166666666666666
+  },
+  "recorded_generation_baseline": {
+    "refusal_accuracy": 0.8666666666666667,
+    "answer_source_accuracy": 0.4,
+    "recomputed": false,
+    "reason": "이번 평가는 검색 결합만 비교하며 생성 API를 다시 호출하지 않음"
+  },
+  "change_counts": {
+    "improved": 0,
+    "worsened": 0,
+    "unchanged": 12,
+    "not_scored": 3
+  },
+  "remaining_failures": [
+    {
+      "question_id": "q10",
+      "category": "multi_document",
+      "source_recall": 0.6666666666666666,
+      "missing_sources": [
+        "incident-response-tool.md"
+      ],
+      "cause": "Top 3 source 후보에 다중 문서 기대 출처가 모두 포함되지 않음"
+    },
+    {
+      "question_id": "q11",
+      "category": "multi_document",
+      "source_recall": 0.3333333333333333,
+      "missing_sources": [
+        "finance-transfer-system.md",
+        "precision-medical-platform.md"
+      ],
+      "cause": "Top 3 source 후보에 다중 문서 기대 출처가 모두 포함되지 않음"
+    }
+  ],
+  "recommended_settings": {
+    "chunking": "structure_500 유지",
+    "retrieval": "Dense + Sparse RRF(k=60)",
+    "candidate_k": 6,
+    "top_k": 3,
+    "metadata_filter": "질문에서 조건을 명시적으로 알 수 있을 때만 검색 전에 적용",
+    "reranker": "보류",
+    "generation_guard": "threshold를 통과한 근거가 없으면 생성하지 않음"
+  },
+  "application_note": "career-fit-ai에서는 검색 근거를 생성 답변과 분리해 관찰하고, Hybrid 후보 결합 뒤에도 기존 근거 부족 분기를 유지한다.",
+  "cases": [
+    {
+      "question_id": "q01",
+      "category": "semantic",
+      "answerable": true,
+      "expected_sources": [
+        "precision-medical-platform.md"
+      ],
+      "dense_sources": [
+        "precision-medical-platform.md",
+        "finance-transfer-system.md"
+      ],
+      "sparse_sources": [
+        "precision-medical-platform.md",
+        "social-analytics-dashboard.md",
+        "backend-skills.md"
+      ],
+      "hybrid_sources": [
+        "precision-medical-platform.md",
+        "finance-transfer-system.md",
+        "social-analytics-dashboard.md"
+      ],
+      "before": {
+        "first_relevant_rank": 1,
+        "reciprocal_rank": 1.0,
+        "source_recall": 1.0
+      },
+      "after": {
+        "first_relevant_rank": 1,
+        "reciprocal_rank": 1.0,
+        "source_recall": 1.0
+      },
+      "change": "unchanged"
+    },
+    {
+      "question_id": "q02",
+      "category": "semantic",
+      "answerable": true,
+      "expected_sources": [
+        "finance-transfer-system.md"
+      ],
+      "dense_sources": [
+        "finance-transfer-system.md",
+        "backend-skills.md"
+      ],
+      "sparse_sources": [
+        "finance-transfer-system.md",
+        "backend-skills.md",
+        "social-analytics-dashboard.md"
+      ],
+      "hybrid_sources": [
+        "finance-transfer-system.md",
+        "backend-skills.md",
+        "social-analytics-dashboard.md"
+      ],
+      "before": {
+        "first_relevant_rank": 1,
+        "reciprocal_rank": 1.0,
+        "source_recall": 1.0
+      },
+      "after": {
+        "first_relevant_rank": 1,
+        "reciprocal_rank": 1.0,
+        "source_recall": 1.0
+      },
+      "change": "unchanged"
+    },
+    {
+      "question_id": "q03",
+      "category": "semantic",
+      "answerable": true,
+      "expected_sources": [
+        "incident-response-tool.md"
+      ],
+      "dense_sources": [
+        "incident-response-tool.md",
+        "finance-transfer-system.md"
+      ],
+      "sparse_sources": [
+        "incident-response-tool.md",
+        "social-analytics-dashboard.md"
+      ],
+      "hybrid_sources": [
+        "incident-response-tool.md",
+        "finance-transfer-system.md",
+        "social-analytics-dashboard.md"
+      ],
+      "before": {
+        "first_relevant_rank": 1,
+        "reciprocal_rank": 1.0,
+        "source_recall": 1.0
+      },
+      "after": {
+        "first_relevant_rank": 1,
+        "reciprocal_rank": 1.0,
+        "source_recall": 1.0
+      },
+      "change": "unchanged"
+    },
+    {
+      "question_id": "q04",
+      "category": "exact_keyword",
+      "answerable": true,
+      "expected_sources": [
+        "finance-transfer-system.md"
+      ],
+      "dense_sources": [
+        "finance-transfer-system.md",
+        "experience-boundaries.md",
+        "backend-skills.md"
+      ],
+      "sparse_sources": [
+        "backend-skills.md",
+        "finance-transfer-system.md",
+        "experience-boundaries.md",
+        "incident-response-tool.md"
+      ],
+      "hybrid_sources": [
+        "finance-transfer-system.md",
+        "backend-skills.md",
+        "experience-boundaries.md"
+      ],
+      "before": {
+        "first_relevant_rank": 1,
+        "reciprocal_rank": 1.0,
+        "source_recall": 1.0
+      },
+      "after": {
+        "first_relevant_rank": 1,
+        "reciprocal_rank": 1.0,
+        "source_recall": 1.0
+      },
+      "change": "unchanged"
+    },
+    {
+      "question_id": "q05",
+      "category": "exact_keyword",
+      "answerable": true,
+      "expected_sources": [
+        "social-analytics-dashboard.md"
+      ],
+      "dense_sources": [
+        "social-analytics-dashboard.md",
+        "experience-boundaries.md",
+        "finance-transfer-system.md"
+      ],
+      "sparse_sources": [
+        "social-analytics-dashboard.md"
+      ],
+      "hybrid_sources": [
+        "social-analytics-dashboard.md",
+        "experience-boundaries.md",
+        "finance-transfer-system.md"
+      ],
+      "before": {
+        "first_relevant_rank": 1,
+        "reciprocal_rank": 1.0,
+        "source_recall": 1.0
+      },
+      "after": {
+        "first_relevant_rank": 1,
+        "reciprocal_rank": 1.0,
+        "source_recall": 1.0
+      },
+      "change": "unchanged"
+    },
+    {
+      "question_id": "q06",
+      "category": "exact_keyword",
+      "answerable": true,
+      "expected_sources": [
+        "precision-medical-platform.md"
+      ],
+      "dense_sources": [
+        "precision-medical-platform.md",
+        "experience-boundaries.md",
+        "incident-response-tool.md"
+      ],
+      "sparse_sources": [
+        "precision-medical-platform.md"
+      ],
+      "hybrid_sources": [
+        "precision-medical-platform.md",
+        "experience-boundaries.md",
+        "incident-response-tool.md"
+      ],
+      "before": {
+        "first_relevant_rank": 1,
+        "reciprocal_rank": 1.0,
+        "source_recall": 1.0
+      },
+      "after": {
+        "first_relevant_rank": 1,
+        "reciprocal_rank": 1.0,
+        "source_recall": 1.0
+      },
+      "change": "unchanged"
+    },
+    {
+      "question_id": "q07",
+      "category": "conditional",
+      "answerable": true,
+      "expected_sources": [
+        "precision-medical-platform.md"
+      ],
+      "dense_sources": [
+        "precision-medical-platform.md"
+      ],
+      "sparse_sources": [
+        "precision-medical-platform.md",
+        "incident-response-tool.md",
+        "backend-skills.md"
+      ],
+      "hybrid_sources": [
+        "precision-medical-platform.md",
+        "incident-response-tool.md",
+        "backend-skills.md"
+      ],
+      "before": {
+        "first_relevant_rank": 1,
+        "reciprocal_rank": 1.0,
+        "source_recall": 1.0
+      },
+      "after": {
+        "first_relevant_rank": 1,
+        "reciprocal_rank": 1.0,
+        "source_recall": 1.0
+      },
+      "change": "unchanged"
+    },
+    {
+      "question_id": "q08",
+      "category": "conditional",
+      "answerable": true,
+      "expected_sources": [
+        "finance-transfer-system.md"
+      ],
+      "dense_sources": [
+        "finance-transfer-system.md",
+        "precision-medical-platform.md"
+      ],
+      "sparse_sources": [
+        "finance-transfer-system.md",
+        "social-analytics-dashboard.md"
+      ],
+      "hybrid_sources": [
+        "finance-transfer-system.md",
+        "precision-medical-platform.md",
+        "social-analytics-dashboard.md"
+      ],
+      "before": {
+        "first_relevant_rank": 1,
+        "reciprocal_rank": 1.0,
+        "source_recall": 1.0
+      },
+      "after": {
+        "first_relevant_rank": 1,
+        "reciprocal_rank": 1.0,
+        "source_recall": 1.0
+      },
+      "change": "unchanged"
+    },
+    {
+      "question_id": "q09",
+      "category": "conditional",
+      "answerable": true,
+      "expected_sources": [
+        "social-analytics-dashboard.md"
+      ],
+      "dense_sources": [
+        "social-analytics-dashboard.md"
+      ],
+      "sparse_sources": [
+        "social-analytics-dashboard.md",
+        "experience-boundaries.md"
+      ],
+      "hybrid_sources": [
+        "social-analytics-dashboard.md",
+        "experience-boundaries.md"
+      ],
+      "before": {
+        "first_relevant_rank": 1,
+        "reciprocal_rank": 1.0,
+        "source_recall": 1.0
+      },
+      "after": {
+        "first_relevant_rank": 1,
+        "reciprocal_rank": 1.0,
+        "source_recall": 1.0
+      },
+      "change": "unchanged"
+    },
+    {
+      "question_id": "q10",
+      "category": "multi_document",
+      "answerable": true,
+      "expected_sources": [
+        "precision-medical-platform.md",
+        "social-analytics-dashboard.md",
+        "incident-response-tool.md"
+      ],
+      "dense_sources": [
+        "precision-medical-platform.md",
+        "experience-boundaries.md",
+        "social-analytics-dashboard.md"
+      ],
+      "sparse_sources": [
+        "backend-skills.md",
+        "social-analytics-dashboard.md",
+        "experience-boundaries.md",
+        "precision-medical-platform.md",
+        "incident-response-tool.md"
+      ],
+      "hybrid_sources": [
+        "precision-medical-platform.md",
+        "experience-boundaries.md",
+        "social-analytics-dashboard.md"
+      ],
+      "before": {
+        "first_relevant_rank": 1,
+        "reciprocal_rank": 1.0,
+        "source_recall": 0.6666666666666666
+      },
+      "after": {
+        "first_relevant_rank": 1,
+        "reciprocal_rank": 1.0,
+        "source_recall": 0.6666666666666666
+      },
+      "change": "unchanged"
+    },
+    {
+      "question_id": "q11",
+      "category": "multi_document",
+      "answerable": true,
+      "expected_sources": [
+        "precision-medical-platform.md",
+        "finance-transfer-system.md",
+        "backend-skills.md"
+      ],
+      "dense_sources": [
+        "backend-skills.md",
+        "experience-boundaries.md",
+        "incident-response-tool.md"
+      ],
+      "sparse_sources": [
+        "backend-skills.md",
+        "experience-boundaries.md",
+        "precision-medical-platform.md",
+        "social-analytics-dashboard.md"
+      ],
+      "hybrid_sources": [
+        "backend-skills.md",
+        "experience-boundaries.md",
+        "incident-response-tool.md"
+      ],
+      "before": {
+        "first_relevant_rank": 1,
+        "reciprocal_rank": 1.0,
+        "source_recall": 0.3333333333333333
+      },
+      "after": {
+        "first_relevant_rank": 1,
+        "reciprocal_rank": 1.0,
+        "source_recall": 0.3333333333333333
+      },
+      "change": "unchanged"
+    },
+    {
+      "question_id": "q12",
+      "category": "multi_document",
+      "answerable": true,
+      "expected_sources": [
+        "incident-response-tool.md",
+        "backend-skills.md"
+      ],
+      "dense_sources": [
+        "backend-skills.md",
+        "incident-response-tool.md"
+      ],
+      "sparse_sources": [
+        "precision-medical-platform.md",
+        "backend-skills.md",
+        "finance-transfer-system.md",
+        "incident-response-tool.md"
+      ],
+      "hybrid_sources": [
+        "backend-skills.md",
+        "incident-response-tool.md",
+        "precision-medical-platform.md"
+      ],
+      "before": {
+        "first_relevant_rank": 1,
+        "reciprocal_rank": 1.0,
+        "source_recall": 1.0
+      },
+      "after": {
+        "first_relevant_rank": 1,
+        "reciprocal_rank": 1.0,
+        "source_recall": 1.0
+      },
+      "change": "unchanged"
+    },
+    {
+      "question_id": "q13",
+      "category": "unanswerable",
+      "answerable": false,
+      "expected_sources": [],
+      "dense_sources": [
+        "incident-response-tool.md",
+        "finance-transfer-system.md",
+        "precision-medical-platform.md"
+      ],
+      "sparse_sources": [],
+      "hybrid_sources": [
+        "incident-response-tool.md",
+        "finance-transfer-system.md",
+        "precision-medical-platform.md"
+      ],
+      "before": {
+        "first_relevant_rank": null,
+        "reciprocal_rank": null,
+        "source_recall": null
+      },
+      "after": {
+        "first_relevant_rank": null,
+        "reciprocal_rank": null,
+        "source_recall": null
+      },
+      "change": "not_scored"
+    },
+    {
+      "question_id": "q14",
+      "category": "unanswerable",
+      "answerable": false,
+      "expected_sources": [],
+      "dense_sources": [
+        "finance-transfer-system.md",
+        "backend-skills.md",
+        "experience-boundaries.md"
+      ],
+      "sparse_sources": [
+        "experience-boundaries.md"
+      ],
+      "hybrid_sources": [
+        "experience-boundaries.md",
+        "finance-transfer-system.md",
+        "backend-skills.md"
+      ],
+      "before": {
+        "first_relevant_rank": null,
+        "reciprocal_rank": null,
+        "source_recall": null
+      },
+      "after": {
+        "first_relevant_rank": null,
+        "reciprocal_rank": null,
+        "source_recall": null
+      },
+      "change": "not_scored"
+    },
+    {
+      "question_id": "q15",
+      "category": "unanswerable",
+      "answerable": false,
+      "expected_sources": [],
+      "dense_sources": [
+        "precision-medical-platform.md",
+        "incident-response-tool.md"
+      ],
+      "sparse_sources": [
+        "social-analytics-dashboard.md",
+        "incident-response-tool.md",
+        "precision-medical-platform.md",
+        "finance-transfer-system.md"
+      ],
+      "hybrid_sources": [
+        "precision-medical-platform.md",
+        "incident-response-tool.md",
+        "social-analytics-dashboard.md"
+      ],
+      "before": {
+        "first_relevant_rank": null,
+        "reciprocal_rank": null,
+        "source_recall": null
+      },
+      "after": {
+        "first_relevant_rank": null,
+        "reciprocal_rank": null,
+        "source_recall": null
+      },
+      "change": "not_scored"
+    }
+  ]
+}

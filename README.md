@@ -224,6 +224,16 @@ python -m app.evaluate_chunk_strategies
 따라서 Chunk 개수·중복 입력량과 경계 차이를 비교할 수 있지만 Dense 검색의 최종
 기본 전략을 확정하는 결과로 사용하지 않는다.
 
+저장된 실제 Dense 기준선과 현재 Qdrant Sparse Search를 결합해 전체 질문의 최종
+검색 평가를 재현하려면 Qdrant 실행 후 다음 명령을 사용한다.
+
+```powershell
+python -m app.evaluate_final_search
+```
+
+질문 Embedding과 답변 생성은 다시 호출하지 않는다. 결과에는 기준선·Hybrid 지표,
+질문별 변화, 남은 실패와 최종 추천 설정이 함께 기록된다.
+
 검색 결과를 근거로 자연어 답변을 생성하려면 `/answer`를 호출한다. 기본 생성
 모델은 비용을 최소화한 `gpt-5-nano`이며, 기준 score 이상의 상위 3개 Chunk만
 Context로 전달한다.
